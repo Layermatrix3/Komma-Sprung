@@ -1,0 +1,1847 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+<title>Kommasprung</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#0b1030">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap">
+<style>
+/* Vollbild-Spielfeld im Neon-Nachtlook. Gerät (Handy/Tablet/PC) steuert Knöpfe und Zoom. */
+:root{
+  --bg1:#0b1030;
+  --bg2:#241552;
+  --glass:rgba(28,30,78,.9);
+  --glass-line:rgba(255,255,255,.14);
+  --text:#ffffff;
+  --muted:#a3abdc;
+  --cyan:#3ef0ff;
+  --pink:#ff4f7b;
+  --yellow:#ffd84d;
+  --violet:#7b5cff;
+  --f:"Fredoka",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%;background:var(--bg1);overflow:hidden}
+body{
+  font-family:var(--f);color:var(--text);font-size:18px;line-height:1.4;
+  user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;overscroll-behavior:none;
+}
+input,textarea{user-select:text;-webkit-user-select:text}
+button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
+kbd{font-family:var(--f);font-size:.85em;padding:1px 8px;border-radius:7px;border:1px solid var(--glass-line);border-bottom-width:3px;background:rgba(255,255,255,.08)}
+
+/* ---------- App-Gerüst ---------- */
+.app{
+  height:100%;display:grid;grid-template-rows:auto 1fr auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:10px 12px;
+  gap:10px;
+  background:radial-gradient(120% 80% at 50% 0%,#2b1a66 0%,var(--bg1) 70%);
+}
+
+/* HUD */
+.hud{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.logo{font-weight:700;font-size:1.6rem;letter-spacing:.5px;margin-right:4px;text-shadow:0 0 18px rgba(62,240,255,.5)}
+.logo b{color:var(--pink);text-shadow:0 0 14px var(--pink)}
+.pill{
+  height:52px;display:flex;align-items:center;gap:8px;padding:0 18px;border-radius:999px;
+  background:var(--glass);border:1px solid var(--glass-line);font-weight:600;font-size:1.15rem;
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+.pill small{font-weight:500;color:var(--muted);font-size:.85rem}
+.dot{width:14px;height:14px;border-radius:50%;flex:none;box-shadow:0 0 10px currentColor;background:currentColor}
+.hearts{display:flex;gap:4px}
+.heart{width:30px;height:30px;fill:var(--pink);filter:drop-shadow(0 0 6px rgba(255,79,123,.8));transition:transform .25s,opacity .25s,fill .25s}
+.heart.empty{fill:#3a3d6e;filter:none;transform:scale(.8);opacity:.7}
+.combo{color:var(--yellow);border-color:rgba(255,216,77,.4);animation:pulse 1s ease-in-out infinite}
+.speed{color:var(--cyan)}
+@keyframes pulse{50%{transform:scale(1.06)}}
+.sp{flex:1}
+.ib{
+  width:52px;height:52px;border-radius:16px;display:grid;place-items:center;flex:none;
+  background:var(--glass);border:1px solid var(--glass-line);transition:transform .1s,background .2s;
+}
+.ib svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.ib:active{transform:scale(.92)}
+.ib:disabled{opacity:.35;cursor:default}
+
+/* Spielfeld */
+.stage{
+  position:relative;min-height:0;border-radius:26px;overflow:hidden;
+  border:1px solid var(--glass-line);
+  box-shadow:0 0 0 1px rgba(123,92,255,.25),0 20px 60px rgba(0,0,0,.45),inset 0 0 60px rgba(62,240,255,.06);
+  touch-action:none;transition:box-shadow .3s;
+}
+body.hc .stage{box-shadow:0 0 0 2px rgba(255,79,123,.6),0 0 40px rgba(255,79,123,.35),0 20px 60px rgba(0,0,0,.45)}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+.rotate{
+  display:none;position:absolute;left:50%;top:14px;transform:translateX(-50%);pointer-events:none;
+  padding:8px 16px;border-radius:999px;background:rgba(0,0,0,.55);font-size:.95rem;white-space:nowrap;
+}
+@media (orientation:portrait){ body.dev-phone .rotate{display:block} }
+
+/* Sprungknopf / Tastatur-Hinweis */
+.controls{display:flex;justify-content:center}
+.jump{
+  width:min(100%,640px);min-height:92px;border:0;border-radius:28px;
+  background:linear-gradient(180deg,#53f5ff 0%,#1fb6d8 100%);color:#062033;
+  font-weight:700;font-size:2rem;letter-spacing:1px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  box-shadow:0 8px 0 #0f6f8a,0 0 40px rgba(62,240,255,.45);
+  transition:transform .06s,box-shadow .06s,opacity .2s;touch-action:none;
+}
+.jump small{font-size:.9rem;font-weight:500;letter-spacing:0;opacity:.75}
+.jump.down,.jump:active{transform:translateY(6px);box-shadow:0 2px 0 #0f6f8a,0 0 24px rgba(62,240,255,.4)}
+.jump.off{opacity:.35}
+.keyhint{display:none;margin:0;color:var(--muted);font-size:1rem;text-align:center;padding:6px 0}
+body.dev-pc .jump{display:none}
+body.dev-pc .keyhint{display:block}
+body.dev-phone .jump{min-height:70px;font-size:1.5rem;border-radius:22px}
+body.dev-phone .jump small{display:none}
+
+/* ---------- Overlays ---------- */
+.overlay{
+  position:fixed;inset:0;z-index:10;display:flex;overflow:auto;
+  padding:max(18px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(18px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  background:rgba(5,7,25,.62);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  animation:fade .25s ease-out;
+}
+#ovRules,#ovOwn{z-index:20}
+@keyframes fade{from{opacity:0}}
+.card{
+  margin:auto;width:100%;max-width:700px;padding:28px;border-radius:30px;
+  background:var(--glass);border:1px solid var(--glass-line);
+  box-shadow:0 30px 80px rgba(0,0,0,.5),0 0 0 1px rgba(123,92,255,.2);
+  display:flex;flex-direction:column;gap:16px;animation:rise .3s cubic-bezier(.2,.9,.3,1.2);
+  min-width:0;
+}
+@keyframes rise{from{transform:translateY(24px) scale(.97);opacity:0}}
+.card h2{margin:0;font-size:2.1rem;line-height:1.05;font-weight:700;text-wrap:balance}
+.eyebrow{margin:0;font-size:.85rem;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+.sec{display:flex;flex-direction:column;gap:8px}
+
+.title{margin:0;text-align:center;font-weight:700;font-size:clamp(2.8rem,9vw,4.6rem);line-height:1;
+  background:linear-gradient(90deg,var(--cyan),var(--violet) 60%,var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 22px rgba(62,240,255,.35))}
+.title span{color:var(--pink);-webkit-text-fill-color:var(--pink)}
+.center{text-align:center;margin:0;color:var(--muted)}
+
+/* Auswahl-Kacheln */
+.tiles-sel{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.opt{
+  border:2px solid var(--glass-line);background:rgba(255,255,255,.06);border-radius:20px;padding:14px 8px;
+  display:flex;flex-direction:column;align-items:center;gap:4px;font-weight:600;font-size:1.15rem;text-align:center;
+  transition:transform .1s,border-color .2s,background .2s;min-width:0;
+}
+.opt .em{font-size:2.2rem;line-height:1}
+.opt small{font-weight:400;font-size:.82rem;color:var(--muted);line-height:1.2}
+.opt:active{transform:scale(.95)}
+.opt.sel{border-color:var(--cyan);background:rgba(62,240,255,.12);box-shadow:0 0 24px rgba(62,240,255,.25)}
+.opt.hard.sel{border-color:var(--pink);background:rgba(255,79,123,.14);box-shadow:0 0 24px rgba(255,79,123,.35)}
+.opt:disabled{opacity:.35;cursor:default}
+.opt svg{width:44px;height:44px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* Segment-Schalter */
+.seg{display:flex;padding:5px;gap:5px;border-radius:20px;background:rgba(0,0,0,.25);border:1px solid var(--glass-line)}
+.seg button{flex:1;min-height:52px;border:0;border-radius:15px;background:transparent;font-weight:600;font-size:1.05rem;color:var(--muted);padding:0 8px}
+.seg button.sel{background:var(--cyan);color:#062033}
+.seg button:disabled{opacity:.35;cursor:default}
+
+/* Spielernamen */
+.players{display:flex;flex-direction:column;gap:8px}
+.pl-row{display:flex;align-items:center;gap:10px}
+.pl-row input{
+  flex:1;min-width:0;height:52px;border-radius:14px;border:1px solid var(--glass-line);background:rgba(0,0,0,.25);
+  color:var(--text);font:inherit;font-size:1.1rem;padding:0 14px;
+}
+.pl-btns{display:flex;gap:8px}
+.small-btn{flex:1;min-height:48px;border-radius:14px;border:1px solid var(--glass-line);background:rgba(255,255,255,.06);font-weight:600}
+.small-btn:disabled{opacity:.35;cursor:default}
+
+.row{display:flex;flex-wrap:wrap;gap:12px}
+.btn{
+  flex:1 1 200px;min-height:64px;border:0;border-radius:20px;font-weight:700;font-size:1.3rem;
+  background:linear-gradient(180deg,#53f5ff,#1fb6d8);color:#062033;box-shadow:0 5px 0 #0f6f8a;
+  transition:transform .06s,box-shadow .06s;
+}
+.btn:active{transform:translateY(4px);box-shadow:0 1px 0 #0f6f8a}
+.btn.ghost{background:rgba(255,255,255,.08);color:var(--text);box-shadow:0 5px 0 rgba(0,0,0,.3);border:1px solid var(--glass-line);font-size:1.1rem;min-height:56px}
+.btn.hard{background:linear-gradient(180deg,#ff7a9a,#e0325c);color:#fff;box-shadow:0 5px 0 #8a1636}
+
+/* Auswertung */
+.rv-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.verdict{font-weight:700;font-size:1.9rem;line-height:1}
+.verdict.good{color:var(--cyan);text-shadow:0 0 18px rgba(62,240,255,.6)}
+.verdict.bad{color:var(--pink);text-shadow:0 0 18px rgba(255,79,123,.5)}
+.rv-sent{margin:0;font-size:1.7rem;line-height:1.5;font-weight:500;padding:18px 20px;border-radius:20px;background:rgba(0,0,0,.25);border:1px solid var(--glass-line);overflow-wrap:anywhere}
+.c{font-weight:700;padding:0 2px}
+.c.ok{color:var(--cyan);text-shadow:0 0 10px var(--cyan)}
+.c.miss{color:var(--pink);border:2px solid var(--pink);border-radius:50%;padding:0 6px;margin-left:2px}
+.c.wrong{color:var(--pink);text-decoration:line-through;text-decoration-thickness:3px}
+.c.sol{color:var(--muted)}
+.legend{margin:0;font-size:.95rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 18px}
+.legend .c{font-size:1.3rem}
+.rv-rules{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.rv-rules li{background:rgba(255,255,255,.04);border-radius:16px;padding:12px 16px;border:1px solid var(--glass-line)}
+.li-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-weight:600}
+.where{font-size:.95rem;color:var(--muted)}
+.rv-rules p{margin:4px 0 0;font-size:1rem}
+.chip{font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:3px 10px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--muted)}
+.chip.good{background:rgba(62,240,255,.15);color:var(--cyan)}
+.chip.bad{background:rgba(255,79,123,.15);color:var(--pink)}
+
+/* Spielerwechsel */
+.turn-name{font-size:clamp(2.4rem,7vw,3.6rem)!important;text-align:center;text-shadow:0 0 26px currentColor}
+.board{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.board li{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid var(--glass-line);font-variant-numeric:tabular-nums}
+.board li.now{border-color:currentColor;background:rgba(255,255,255,.1)}
+.board .nm{flex:1;min-width:0;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.board .hs{color:var(--pink);letter-spacing:2px}
+.board .sc{font-weight:700;color:var(--text);min-width:70px;text-align:right}
+.board .md{font-size:1.6rem;width:34px;text-align:center}
+
+/* Ergebnis */
+.end-top{display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.grade{
+  width:120px;height:120px;flex:none;border-radius:50%;display:grid;place-items:center;
+  font-size:4.2rem;font-weight:700;color:var(--yellow);
+  border:4px solid var(--yellow);box-shadow:0 0 30px rgba(255,216,77,.45),inset 0 0 20px rgba(255,216,77,.2);
+  text-shadow:0 0 18px rgba(255,216,77,.7);position:relative;
+}
+.grade::before{content:"Note";position:absolute;top:-14px;padding:0 8px;font-size:1rem;background:#1f2160;border-radius:999px;color:var(--yellow);text-shadow:none}
+.teacher{margin:0;font-size:1.5rem;font-weight:600;line-height:1.25;flex:1 1 240px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.tile{background:rgba(255,255,255,.05);border:1px solid var(--glass-line);border-radius:20px;padding:14px;text-align:center;min-width:0}
+.tile b{display:block;font-size:2rem;line-height:1.1;font-variant-numeric:tabular-nums}
+.tile span{font-size:.9rem;color:var(--muted)}
+.tile.ok b{color:var(--cyan)} .tile.bad b{color:var(--pink)}
+.focus{margin:0;padding:12px 16px;border-radius:16px;background:rgba(255,216,77,.12);border:1px solid rgba(255,216,77,.35);color:#ffe9a3}
+.rec{margin:0;text-align:center;font-size:1.5rem;font-weight:700;color:var(--yellow);text-shadow:0 0 16px rgba(255,216,77,.7);animation:pulse 1s infinite}
+.winner{margin:0;text-align:center;font-size:clamp(2.2rem,6vw,3.2rem);font-weight:700;text-shadow:0 0 24px currentColor}
+
+/* Eigene Sätze */
+.own-in{
+  width:100%;min-height:110px;resize:vertical;border-radius:16px;border:1px solid var(--glass-line);background:rgba(0,0,0,.25);
+  color:var(--text);font:inherit;font-size:1.15rem;padding:12px 14px;
+}
+.own-msg{margin:0;font-size:.95rem;min-height:1.3em}
+.own-msg.err{color:var(--pink)} .own-msg.ok{color:var(--cyan)}
+.own-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;max-height:40vh;overflow:auto}
+.own-list li{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid var(--glass-line)}
+.own-list .tx{flex:1;min-width:0;overflow-wrap:anywhere}
+.own-list .tx div{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.own-list .ib{width:44px;height:44px;border-radius:12px}
+.empty-own{color:var(--muted);text-align:center;padding:14px;border:1px dashed var(--glass-line);border-radius:14px}
+
+/* Regeln */
+.rules-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.rule{background:rgba(255,255,255,.05);border:1px solid var(--glass-line);border-radius:18px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.rule h3{margin:0;font-size:1.15rem;color:var(--cyan)}
+.rule.no h3{color:var(--pink)}
+.rule p{margin:0;font-size:.98rem;color:#d9ddf7}
+.rule .ex{margin-top:auto;padding-top:6px;font-size:1.1rem;font-weight:500;color:#fff}
+.ex-c{color:var(--yellow);font-weight:700;font-size:1.3em}
+
+@media (max-width:900px){ .logo{display:none} }
+@media (max-width:640px){
+  .hud{gap:6px}
+  .pill{height:44px;padding:0 12px;font-size:1rem}
+  .ib{width:44px;height:44px}
+  .heart{width:22px;height:22px}
+  .card{padding:20px;border-radius:24px}
+  .rv-sent{font-size:1.3rem}
+  .tiles{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-height:520px){
+  .jump{min-height:60px;font-size:1.4rem}
+  .jump small{display:none}
+  .pill{height:42px}
+  .ib{width:42px;height:42px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="app">
+  <header class="hud">
+    <span class="logo">Komma<b>,</b>sprung</span>
+    <div class="pill" id="hPlayer" hidden></div>
+    <div class="pill" id="hSatz"><small>Satz</small> –</div>
+    <div class="pill"><div class="hearts" id="hLives" aria-live="polite"></div></div>
+    <div class="pill"><span id="hScore">0</span><small>Punkte</small></div>
+    <div class="pill speed" id="hSpeed" hidden></div>
+    <div class="pill combo" id="hCombo" hidden></div>
+    <span class="sp"></span>
+    <button class="ib" id="bRules" type="button" aria-label="Kommaregeln ansehen">
+      <svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5"/><path d="M9 8h6M9 12h5"/></svg>
+    </button>
+    <button class="ib" id="bMusic" type="button" aria-label="Musik an/aus"></button>
+    <button class="ib" id="bSound" type="button" aria-label="Soundeffekte an/aus"></button>
+    <button class="ib" id="bFull" type="button" aria-label="Vollbild">
+      <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+    </button>
+    <button class="ib" id="bPause" type="button" aria-label="Pause" disabled></button>
+  </header>
+
+  <main class="stage" id="stage">
+    <canvas id="cv" aria-label="Spielfeld: Die Figur läuft über einen Satz. Springen setzt ein Komma."></canvas>
+    <div class="rotate">↻ Dreh dein Handy quer, dann siehst du mehr</div>
+  </main>
+
+  <footer class="controls">
+    <button class="jump off" id="bJump" type="button">SPRING!<small>oder einfach aufs Spielfeld tippen</small></button>
+    <p class="keyhint">Springen: <kbd>Leertaste</kbd> oder <kbd>↑</kbd> &nbsp;·&nbsp; Pause: <kbd>P</kbd> &nbsp;·&nbsp; oder klicken</p>
+  </footer>
+</div>
+
+<!-- Geräteauswahl -->
+<div class="overlay" id="ovDevice" hidden>
+  <div class="card">
+    <h1 class="title">Komma<span>,</span>sprung</h1>
+    <h2 style="text-align:center;font-size:1.7rem">Worauf spielst du?</h2>
+    <div class="tiles-sel">
+      <button class="opt" type="button" data-device="phone">
+        <svg viewBox="0 0 48 48"><rect x="15" y="5" width="18" height="38" rx="4"/><path d="M22 38h4"/></svg>Handy<small>kleiner Bildschirm</small></button>
+      <button class="opt" type="button" data-device="tablet">
+        <svg viewBox="0 0 48 48"><rect x="7" y="8" width="34" height="32" rx="4"/><path d="M22 35h4"/></svg>Tablet<small>große Touch-Knöpfe</small></button>
+      <button class="opt" type="button" data-device="pc">
+        <svg viewBox="0 0 48 48"><rect x="5" y="8" width="38" height="25" rx="3"/><path d="M18 40h12M24 33v7"/></svg>PC<small>mit Tastatur</small></button>
+    </div>
+    <p class="center">Du kannst das später im Menü ändern.</p>
+  </div>
+</div>
+
+<!-- Hauptmenü -->
+<div class="overlay" id="ovMenu" hidden>
+  <div class="card">
+    <h1 class="title">Komma<span>,</span>sprung</h1>
+    <p class="center">Die Figur läuft über den Satz. Spring genau dort, wo ein Komma hingehört. Mit jedem Wort wird sie schneller!</p>
+
+    <div class="sec">
+      <p class="eyebrow">Spielmodus</p>
+      <div class="seg" id="segMode">
+        <button type="button" data-mode="solo">👤 Allein</button>
+        <button type="button" data-mode="multi">👥 Mehrspieler</button>
+      </div>
+    </div>
+
+    <div class="sec" id="playerBox" hidden>
+      <p class="eyebrow">Wer spielt mit? (abwechselnd, je 5 Sätze)</p>
+      <div class="players" id="playerList"></div>
+      <div class="pl-btns">
+        <button class="small-btn" id="bAddPl" type="button">+ Spieler</button>
+        <button class="small-btn" id="bDelPl" type="button">– Spieler</button>
+      </div>
+    </div>
+
+    <div class="online-tools">
+      <h3>🌐 Online zusammen spielen</h3>
+      <p>Erstelle einen Raum und teile den Code. Beide steuern dieselbe Spielfigur und sehen den Spielstand live.</p>
+      <div class="online-actions">
+        <button class="btn ghost" id="bOnlineCreate" type="button">Raum erstellen</button>
+      </div>
+      <label class="eyebrow" for="onlineJoinCode">Raumcode eingeben</label>
+      <input class="online-input" id="onlineJoinCode" maxlength="6" autocomplete="off" placeholder="ABC123" aria-label="Raumcode">
+      <div class="online-actions"><button class="btn ghost" id="bOnlineJoin" type="button">Raum beitreten</button></div>
+      <p class="online-small">Benötigt Internet und eine Verbindung zum kostenlosen PeerJS-Signalisierungsdienst.</p>
+    </div>
+
+    <div class="sec">
+      <p class="eyebrow">Tempo</p>
+      <div class="tiles-sel" id="tempoBox">
+        <button class="opt" type="button" data-tempo="langsam"><span class="em">🐢</span>Langsam<small>zum Üben</small></button>
+        <button class="opt" type="button" data-tempo="normal"><span class="em">🏃</span>Normal<small>genau richtig</small></button>
+        <button class="opt" type="button" data-tempo="schnell"><span class="em">🚀</span>Schnell<small>für Profis</small></button>
+        <button class="opt hard" type="button" data-tempo="hardcore"><span class="em">💀</span>Hardcore<small>1 Herz, keine Hilfe</small></button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <p class="eyebrow">Welche Sätze?</p>
+      <div class="seg" id="segSource">
+        <button type="button" data-source="alle">📚 Alle</button>
+        <button type="button" data-source="mix">🔀 Gemischt</button>
+        <button type="button" data-source="eigene" id="srcOwn">✏️ Meine</button>
+      </div>
+    </div>
+
+    <button class="btn" id="bStart" type="button" style="flex:none">Los geht's!</button>
+    <div class="row">
+      <button class="btn ghost" id="bOwn" type="button">✏️ Meine Sätze</button>
+      <button class="btn ghost" id="bDevice" type="button">Gerät ändern</button>
+    </div>
+    <p class="center" id="bestLine"></p>
+  </div>
+</div>
+
+<div class="overlay" id="ovTurn" hidden></div>
+<div class="overlay" id="ovReview" hidden></div>
+
+<div class="overlay" id="ovPause" hidden>
+  <div class="card">
+    <h2>⏸ Pause</h2>
+    <p style="margin:0;color:var(--muted)">Die Figur wartet auf dich.</p>
+    <div class="row">
+      <button class="btn" id="bResume" type="button">Weiterspielen</button>
+      <button class="btn ghost" id="bQuit" type="button">Spiel beenden</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="ovOnline" hidden>
+  <div class="card">
+    <h2 id="onlineTitle">Online-Raum</h2>
+    <p id="onlineIntro" class="center">Verbinde dich mit dem anderen Spieler.</p>
+    <div id="onlineRoomCode" class="online-code" hidden></div>
+    <p id="onlineStatus" class="online-state center" aria-live="polite">Verbindung wird hergestellt …</p>
+    <div class="row"><button class="btn" id="bOnlineStart" type="button" hidden>Gemeinsam starten</button><button class="btn ghost" id="bOnlineCopy" type="button" hidden>Code kopieren</button></div>
+    <div class="row"><button class="btn ghost" id="bOnlineLeave" type="button">Zurück zum Menü</button></div>
+  </div>
+</div>
+<div class="overlay" id="ovEnd" hidden></div>
+
+<!-- Eigene Sätze -->
+<div class="overlay" id="ovOwn" hidden>
+  <div class="card">
+    <div class="rv-head"><h2>✏️ Meine Sätze</h2><button class="ib" id="bOwnClose" type="button" aria-label="Schließen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <p style="margin:0;color:var(--muted)">Schreib deinen Satz <b style="color:var(--text)">mit den richtigen Kommas</b>. Im Spiel sind die Kommas dann versteckt, und du musst sie finden. Mehrere Sätze? Jeder Satz in eine eigene Zeile.</p>
+    <label class="eyebrow" for="ownInput">Neuer Satz</label>
+    <textarea class="own-in" id="ownInput" placeholder="Zum Beispiel: Ich lache, weil mein Hund, der Bello heißt, so lustig ist."></textarea>
+    <p class="own-msg" id="ownMsg" aria-live="polite"></p>
+    <button class="btn" id="bOwnAdd" type="button" style="flex:none">Satz speichern</button>
+    <p class="eyebrow" id="ownCount">Gespeichert</p>
+    <ul class="own-list" id="ownList"></ul>
+    <p class="center" style="font-size:.9rem">Die Sätze bleiben nur auf diesem Gerät in diesem Browser gespeichert.</p>
+  </div>
+</div>
+
+<div class="overlay" id="ovRules" hidden>
+  <div class="card" style="max-width:900px">
+    <div class="rv-head"><h2>Die Kommaregeln</h2><button class="ib" id="bRulesClose" type="button" aria-label="Schließen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="rules-grid" id="rulesGrid"></div>
+    <button class="btn" id="bRulesOk" type="button" style="flex:none">Alles klar!</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(() => {
+'use strict';
+
+/* ---------- Inhalte ---------- */
+const RULES = {
+  NS:  {name:'Nebensatz', text:'Haupt- und Nebensatz werden durch ein Komma getrennt. Nebensätze beginnen oft mit weil, dass, wenn, ob, wann oder damit, und das Verb steht am Ende.', ex:'Ich bleibe zu Hause, weil es regnet.'},
+  NSV: {name:'Nebensatz am Anfang', text:'Steht der Nebensatz vorn, setzt du das Komma direkt vor das Verb des Hauptsatzes.', ex:'Als wir ankamen, war der Zug schon weg.'},
+  REL: {name:'Relativsatz', text:'Ein Relativsatz beginnt mit der, die, das (auch in der, mit dem …) und bezieht sich auf ein Nomen. Er wird vorne und hinten durch Komma abgetrennt.', ex:'Der Hund, der bellt, gehört Tom.'},
+  AUF: {name:'Aufzählung', text:'Gleichrangige Wörter oder Wortgruppen trennst du mit Kommas. Vor und, oder und sowie steht kein Komma.', ex:'Wir brauchen Mehl, Eier und Zucker.'},
+  INF: {name:'Infinitivgruppe', text:'Beginnt die Gruppe mit um, ohne, statt, anstatt, außer oder als und endet sie mit zu + Verb, steht immer ein Komma.', ex:'Er spart, um ein Rad zu kaufen.'},
+  APP: {name:'Apposition (Beisatz)', text:'Ein nachgestellter Beisatz erklärt ein Nomen genauer. Er wird in Kommas eingeschlossen.', ex:'Herr Becker, unser Lehrer, fährt Rad.'},
+  ANR: {name:'Anrede', text:'Sprichst du jemanden direkt an, trennst du den Namen mit Komma vom Rest des Satzes ab.', ex:'Lisa, gibst du mir das Salz?'},
+  AUS: {name:'Ausruf und Antwort', text:'Ausrufe und Antworten wie Ach, Oh, Ja oder Nein am Satzanfang werden mit Komma abgetrennt.', ex:'Ach, das habe ich vergessen.'},
+  GEG: {name:'Gegensatz', text:'Vor entgegenstellenden Wörtern wie aber, sondern, doch und jedoch steht ein Komma.', ex:'Das Spiel war kurz, aber spannend.'},
+  HS:  {name:'Satzreihe', text:'Zwei Hauptsätze, die nicht durch und oder oder verbunden sind, trennst du mit einem Komma.', ex:'Es war kalt, deshalb zog sie eine Jacke an.'},
+  JE:  {name:'je … desto', text:'Der Teil mit je ist ein Nebensatz. Darum steht vor desto (oder umso) ein Komma.', ex:'Je später es wurde, desto müder wurden wir.'},
+  KEIN:{name:'Kein Komma', text:'Verbinden und oder oder nur zwei Satzteile, steht kein Komma. Auch ein langer Satz braucht keins, wenn er nur aus einem Hauptsatz besteht.', ex:'Lea liest ein Buch und trinkt Kakao.'},
+  EIG: {name:'Dein Komma', text:'In deinem eigenen Satz steht hier ein Komma. Überleg, welche Regel dazu passt.', ex:'', hide:true}
+};
+
+const SENT = [
+  // Stufe 1
+  {d:1, t:'Ich bleibe heute zu Hause, weil es draußen stark regnet.', r:['NS']},
+  {d:1, t:'Mia weiß genau, dass der Bus heute später kommt.', r:['NS']},
+  {d:1, t:'Wir gehen ins Freibad, wenn die Sonne scheint.', r:['NS']},
+  {d:1, t:'Obwohl er müde war, spielte er noch eine Runde.', r:['NSV']},
+  {d:1, t:'Als wir am Bahnhof ankamen, war der Zug schon weg.', r:['NSV']},
+  {d:1, t:'Im Rucksack liegen ein Apfel, eine Flasche Wasser und ein Buch.', r:['AUF']},
+  {d:1, t:'Tom kauft Brot, Käse, Tomaten und Milch.', r:['AUF','AUF']},
+  {d:1, t:'Wir brauchen Mehl, Eier, Zucker und etwas Butter.', r:['AUF','AUF']},
+  {d:1, t:'Lisa, kannst du mir bitte das Salz geben?', r:['ANR']},
+  {d:1, t:'Kommst du heute mit, Jonas?', r:['ANR']},
+  {d:1, t:'Ach, das habe ich völlig vergessen.', r:['AUS']},
+  {d:1, t:'Ja, ich komme heute Abend gerne mit.', r:['AUS']},
+  {d:1, t:'Das Spiel war kurz, aber sehr spannend.', r:['GEG']},
+  {d:1, t:'Er wollte nicht Fußball spielen, sondern lieber schwimmen gehen.', r:['GEG']},
+  {d:1, t:'Lea liest ein Buch und trinkt dabei einen Kakao.', r:[], n:'Hier verbindet und zwei Tätigkeiten derselben Person (Lea liest … und trinkt …). Dazwischen steht kein Komma.'},
+  {d:1, t:'Möchtest du Tee oder Kaffee?', r:[], n:'Vor oder steht kein Komma, wenn nur zwei Dinge verbunden werden.'},
+  // Stufe 2
+  {d:2, t:'Der Hund, der im Garten bellt, gehört unserem Nachbarn.', r:['REL','REL']},
+  {d:2, t:'Das ist das Fahrrad, das ich mir gewünscht habe.', r:['REL']},
+  {d:2, t:'Die Stadt, in der ich wohne, hat einen großen Hafen.', r:['REL','REL']},
+  {d:2, t:'Er spart sein ganzes Geld, um sich ein Skateboard zu kaufen.', r:['INF']},
+  {d:2, t:'Sie ging aus dem Haus, ohne die Tür abzuschließen.', r:['INF']},
+  {d:2, t:'Anstatt zu lernen, schaute er den ganzen Nachmittag Videos.', r:['INF']},
+  {d:2, t:'Herr Becker, unser Mathelehrer, fährt jeden Tag mit dem Rad.', r:['APP','APP']},
+  {d:2, t:'Frau Yilmaz, die Leiterin der Theater-AG, sucht noch Schauspieler.', r:['APP','APP']},
+  {d:2, t:'Kannst du mir sagen, wann das Konzert beginnt?', r:['NS']},
+  {d:2, t:'Ich weiß nicht, ob ich morgen Zeit habe.', r:['NS']},
+  {d:2, t:'Es war kalt, deshalb zog sie ihre dicke Jacke an.', r:['HS']},
+  {d:2, t:'Je länger wir warteten, desto ungeduldiger wurden wir.', r:['JE']},
+  {d:2, t:'Nach dem Training gehen wir zusammen Pizza essen.', r:[], n:'Der Satz ist ein einfacher Hauptsatz ohne Nebensatz. Er braucht kein Komma.'},
+  {d:2, t:'Meine Schwester und ich spielen gerne Karten oder Brettspiele.', r:[], n:'Und und oder verbinden hier jeweils nur zwei Satzteile. Davor steht kein Komma.'},
+  // Stufe 3
+  {d:3, t:'Wenn du Zeit hast, komm doch vorbei, damit wir zusammen lernen können.', r:['NSV','NS']},
+  {d:3, t:'Mein Bruder, der gerne kocht, macht heute Nudeln, Salat und Pudding.', r:['REL','REL','AUF']},
+  {d:3, t:'Paula, hast du gesehen, dass draußen ein Regenbogen ist?', r:['ANR','NS']},
+  {d:3, t:'Nachdem wir gegessen hatten, gingen wir spazieren, obwohl es schon dunkel war.', r:['NSV','NS']},
+  {d:3, t:'Oh, das ist der Film, den ich schon lange sehen wollte.', r:['AUS','REL']},
+  {d:3, t:'Sie übte jeden Tag, um beim Konzert, das im Mai stattfindet, gut zu spielen.', r:['INF','REL','REL']},
+  {d:3, t:'Ich glaube, dass sie kommt, wenn sie mit den Hausaufgaben fertig ist.', r:['NS','NS']},
+  {d:3, t:'Max, der neue Schüler aus Hamburg, spielt Gitarre, Klavier und Schlagzeug.', r:['APP','APP','AUF']},
+  {d:3, t:'Sie lachte, weil der Hund, der eben noch geschlafen hatte, plötzlich nieste.', r:['NS','REL','REL']},
+  {d:3, t:'Der Junge mit der roten Mütze wartet vor der Schule auf seine Freunde.', r:[], n:'Der Satz ist lang, besteht aber nur aus einem Hauptsatz. Deshalb gehört kein Komma hinein.'},
+  {d:3, t:'Am Wochenende fahren wir mit unseren Fahrrädern zum See und grillen dort Würstchen.', r:[], n:'Und verbindet zwei Tätigkeiten derselben Personen (wir fahren … und grillen …). Dazwischen steht kein Komma.'}
+];
+const DEMO = {t:'Lies genau, spring rechtzeitig und setz jedes Komma.', r:['AUF']};
+
+/* ---------- Konstanten ---------- */
+const WORLD_H = 300, GROUND = 196, BLOCK_H = 50, BASE = 34, GAP = 40, PAD = 16;
+const FONT = (px, w) => `${w || 600} ${px}px "Fredoka",system-ui,-apple-system,"Segoe UI",sans-serif`;
+const WORD_FONT = FONT(27, 600), COMMA_FONT = FONT(52, 700);
+// speed: Grundtempo, ramp: Zuwachs pro Wort, cap: Höchstfaktor
+const TEMPO = {
+  langsam:  {name:'Langsam',  speed:80,  ramp:.010, cap:1.6, lives:4, zone:.55, hints:true},
+  normal:   {name:'Normal',   speed:110, ramp:.014, cap:1.9, lives:4, zone:.55, hints:true},
+  schnell:  {name:'Schnell',  speed:140, ramp:.018, cap:2.1, lives:4, zone:.55, hints:true},
+  hardcore: {name:'Hardcore', speed:160, ramp:.025, cap:2.3, lives:1, zone:.40, hints:false}
+};
+const DEVICES = {phone:{name:'Handy', view:560}, tablet:{name:'Tablet', view:720}, pc:{name:'PC', view:900}};
+const PCOLORS = ['#3ef0ff', '#ffa94d', '#9dff6a', '#b48cff'];
+const SOLO_LEN = 10, MULTI_LEN = 5;
+const JUMP_T = .56, JUMP_H = 66, ZONE_MAX = 96, ZONE_AFTER = 10, DROP_T = .26;
+const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const C = {
+  bg1:'#0b1030', bg2:'#2a1760', plat1:'#5b4ce6', plat2:'#2c2590', edge:'#8af5ff',
+  text:'#ffffff', dark:'#0b1030', cyan:'#3ef0ff', pink:'#ff4f7b', yellow:'#ffd84d', muted:'#8a93c7'
+};
+
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d'), stage = $('stage');
+
+/* ---------- Speicher ---------- */
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem('kommasprung.'+k); return v === null ? d : v; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem('kommasprung.'+k, String(v)); }catch(e){} }
+};
+function loadJSON(k, d){ try{ const v = JSON.parse(store.get(k, 'null')); return v === null ? d : v; }catch(e){ return d; } }
+
+/* ---------- Ton ---------- */
+let actx = null, soundOn = store.get('sound','1') === '1';
+function ensureAudio(){
+  try{
+    if(!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if(actx.state === 'suspended') actx.resume();
+  }catch(e){ actx = null; }
+}
+function tone(f1, f2, dur, type, vol, delay){
+  if(!soundOn || !actx) return;
+  try{
+    const t = actx.currentTime + (delay||0);
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(f1, t);
+    o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+    g.gain.setValueAtTime(vol || .06, t);
+    g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(t); o.stop(t + dur + .03);
+  }catch(e){}
+}
+function sfx(k){
+  if(G.demo) return;
+  if(k === 'jump') tone(360, 620, .12, 'sine', .05);
+  else if(k === 'ok'){ tone(660, 660, .08, 'triangle', .07); tone(990, 990, .12, 'triangle', .07, .07); }
+  else if(k === 'err') tone(230, 105, .24, 'square', .04);
+  else if(k === 'clean') [523, 659, 784, 1046].forEach((f, i) => tone(f, f, .12, 'triangle', .06, i * .08));
+  else if(k === 'end') tone(440, 440, .1, 'triangle', .05);
+  else if(k === 'win') [523, 659, 784, 1046, 1318].forEach((f, i) => tone(f, f, .16, 'triangle', .06, i * .1));
+}
+function buzz(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
+
+/* ---------- Musik: Synthwave-Loop, live erzeugt ---------- */
+// Akkorde als MIDI-Noten: normal Am–F–C–G, Hardcore Dm–B–C–A (düsterer)
+const PROG = {
+  normal: [[57,60,64],[53,57,60],[48,52,55],[55,59,62]],
+  hard:   [[50,53,57],[46,50,53],[48,52,55],[45,49,52]]
+};
+const LEAD = [12, null, 7, null, 9, 7, null, 4, 12, null, 14, 12, 9, null, 7, null];
+const MUSIC = {on: store.get('music','1') === '1', timer:null, step:0, next:0, gain:null, noise:null};
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+function musicStart(){
+  if(!MUSIC.on || !actx || MUSIC.timer) return;
+  try{
+    if(!MUSIC.noise){
+      const len = actx.sampleRate;
+      MUSIC.noise = actx.createBuffer(1, len, actx.sampleRate);
+      const d = MUSIC.noise.getChannelData(0);
+      for(let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    }
+    MUSIC.gain = actx.createGain();
+    MUSIC.gain.gain.value = 0;
+    MUSIC.gain.connect(actx.destination);
+    MUSIC.next = actx.currentTime + .05;
+    MUSIC.step = 0;
+    MUSIC.timer = setInterval(musicTick, 25);
+  }catch(e){ MUSIC.timer = null; }
+}
+function musicStop(){
+  if(!MUSIC.timer) return;
+  clearInterval(MUSIC.timer); MUSIC.timer = null;
+  const g = MUSIC.gain;
+  try{ g.gain.setTargetAtTime(0, actx.currentTime, .08); setTimeout(() => { try{ g.disconnect(); }catch(e){} }, 600); }catch(e){}
+}
+function musicTick(){
+  if(!actx) return;
+  const now = actx.currentTime;
+  const playing = !G.demo && G.state === 'run';
+  const vol = G.state === 'paused' ? 0 : playing ? .16 : .09;
+  MUSIC.gain.gain.setTargetAtTime(vol, now, .25);
+  // Die Musik zieht mit dem Spieltempo an.
+  const hard = G.tempo === 'hardcore' && !G.demo;
+  const factor = playing ? G.speed / TEMPO[G.tempo].speed : 1;
+  const bpm = (hard ? 140 : 112) * (1 + (factor - 1) * .5);
+  const dur = 60 / bpm / 4;
+  if(MUSIC.next < now) MUSIC.next = now + .02;
+  while(MUSIC.next < now + .12){
+    musicStep(MUSIC.step, MUSIC.next, dur, hard);
+    MUSIC.next += dur;
+    MUSIC.step++;
+  }
+}
+function mNote(freq, t, len, type, vol, filter){
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + .01);
+  g.gain.exponentialRampToValueAtTime(.0001, t + len);
+  let out = g;
+  o.connect(g);
+  if(filter){ const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = filter; g.connect(f); out = f; }
+  out.connect(MUSIC.gain);
+  o.start(t); o.stop(t + len + .02);
+}
+function mNoise(t, len, hp, vol){
+  const src = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain();
+  src.buffer = MUSIC.noise;
+  f.type = 'highpass'; f.frequency.value = hp;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + len);
+  src.connect(f); f.connect(g); g.connect(MUSIC.gain);
+  src.start(t, Math.random() * .5); src.stop(t + len + .02);
+}
+function musicStep(step, t, dur, hard){
+  try{
+    const s16 = step % 16, bar = Math.floor(step / 16) % 4;
+    const chord = (hard ? PROG.hard : PROG.normal)[bar];
+    // Kick
+    if(s16 % 4 === 0){
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(45, t + .12);
+      g.gain.setValueAtTime(.9, t); g.gain.exponentialRampToValueAtTime(.0001, t + .18);
+      o.connect(g); g.connect(MUSIC.gain); o.start(t); o.stop(t + .2);
+    }
+    // Snare und Hi-Hat
+    if(s16 === 4 || s16 === 12) mNoise(t, .14, 1500, .35);
+    if(s16 % 2 === 1 || hard) mNoise(t, .03, 7000, hard ? .1 : .13);
+    // Bass
+    if(s16 % 2 === 0) mNote(mtof(chord[0] - 24 + (s16 % 4 === 2 ? 12 : 0)), t, dur * 1.7, hard ? 'sawtooth' : 'triangle', .32, hard ? 900 : 0);
+    // Arpeggio
+    const arp = chord[[0, 1, 2, 1][s16 % 4]] + 12;
+    mNote(mtof(arp), t, dur * .9, 'square', .045, 2600);
+    // Flächen-Akkord am Taktanfang
+    if(s16 === 0) chord.forEach(n => mNote(mtof(n), t, dur * 15, 'sine', .05));
+    // Kleine Melodie in jedem zweiten Takt
+    const ld = LEAD[s16];
+    if(bar % 2 === 1 && ld !== null) mNote(mtof(chord[0] + ld), t, dur * 1.8, hard ? 'sawtooth' : 'triangle', .07, 3200);
+  }catch(e){}
+}
+function wakeAudio(){ ensureAudio(); musicStart(); }
+
+/* ---------- Zustand ---------- */
+const G = {
+  state:'loading', demo:true,
+  tempo: store.get('tempo','normal'), device: store.get('device', ''), source: store.get('source','alle'),
+  multi: store.get('multi','0') === '1', names: loadJSON('names', ['Spieler 1','Spieler 2']),
+  players:[], cur:0,
+  figX:-100, speed:95, jumpT:-1, time:0, introT:9,
+  shake:0, hurt:0, dieT:0, reviewAt:0, turnAt:0
+};
+if(!TEMPO[G.tempo]) G.tempo = 'normal';
+if(!['alle','mix','eigene'].includes(G.source)) G.source = 'alle';
+if(!Array.isArray(G.names) || G.names.length < 2) G.names = ['Spieler 1','Spieler 2'];
+G.names = G.names.slice(0, 4);
+let own = loadJSON('own', []);
+if(!Array.isArray(own)) own = [];
+let s = null, popups = [], parts = [];
+let cssW = 0, cssH = 0, dpr = 1, scale = 1, viewW = 600, viewH = WORLD_H, offY = 0, minView = 720;
+
+const T = () => G.demo ? TEMPO.normal : TEMPO[G.tempo];
+const P = () => G.players[G.cur];
+
+const STARS = Array.from({length:90}, (_, i) => ({x: hash(i) * 1600, y: hash(i + 99), r: .6 + hash(i + 7) * 1.6, tw: hash(i + 3) * 6}));
+
+/* ---------- Hilfen ---------- */
+function hash(n){ const x = Math.sin(n*127.1 + 311.7)*43758.5453; return x - Math.floor(x); }
+const esc = t => String(t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function joinDe(a){ return a.length <= 1 ? (a[0]||'') : a.slice(0,-1).join(', ') + ' und ' + a[a.length-1]; }
+function shuffle(a){ a = a.slice(); for(let i = a.length-1; i > 0; i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; } return a; }
+const lerp = (a, b, p) => a + (b - a) * p;
+
+/* ---------- Eigene Sätze: Regel raten ---------- */
+const W_SUB = new Set('weil dass wenn ob obwohl damit als nachdem bevor während wann wie wo warum weshalb wieso sodass falls seit seitdem bis indem sobald solange'.split(' '));
+const W_REL = new Set('der die das dem den deren dessen denen welcher welche welches welchem welchen'.split(' '));
+const W_PREP = new Set('in mit auf an bei von zu aus für über unter nach vor durch um'.split(' '));
+const W_INF = new Set('um ohne anstatt statt außer'.split(' '));
+const W_GEG = new Set('aber sondern doch jedoch'.split(' '));
+const W_AUS = new Set('ach oh ja nein na hey au juhu aua okay ok'.split(' '));
+const W_HS = new Set('deshalb deswegen trotzdem dann darum daher'.split(' '));
+const clean = w => (w || '').toLowerCase().replace(/[^a-zäöüß]/g, '');
+function normalize(t){
+  return t.replace(/\s+/g, ' ').replace(/\s*,\s*/g, ', ').replace(/^[,\s]+/, '').replace(/[,\s]+$/, '').trim();
+}
+function guessRules(t){
+  const toks = t.split(' '), first = clean(toks[0]), rules = [];
+  let relOpen = false; // ein Relativsatz in der Satzmitte wird auch hinten mit Komma geschlossen
+  toks.forEach((tk, i) => {
+    if(!tk.endsWith(',') || i >= toks.length - 1) return;
+    const nx = clean(toks[i + 1]), nx2 = clean(toks[i + 2]);
+    let r = 'EIG';
+    if(relOpen && !W_SUB.has(nx) && !W_REL.has(nx) && !W_INF.has(nx)){ r = 'REL'; relOpen = false; rules.push(r); return; }
+    if(i === 0 && W_AUS.has(first)) r = 'AUS';
+    else if(nx === 'desto' || nx === 'umso') r = 'JE';
+    else if(W_INF.has(nx) && !(nx === 'um' && W_REL.has(nx2))) r = 'INF';
+    else if(W_SUB.has(nx)) r = 'NS';
+    else if(W_REL.has(nx) || (W_PREP.has(nx) && W_REL.has(nx2))) r = 'REL';
+    else if(W_GEG.has(nx)) r = 'GEG';
+    else if(W_HS.has(nx)) r = 'HS';
+    else if(rules.length === 0 && W_SUB.has(first)) r = 'NSV';
+    if(r === 'REL') relOpen = true;
+    rules.push(r);
+  });
+  return rules;
+}
+function ownToSent(t){
+  const r = guessRules(t);
+  return {d:0, t, r, own:true, n: r.length ? null : 'Dein Satz hat kein Komma. Hier durfte man also nirgends springen.'};
+}
+
+/* ---------- Satz vorbereiten ---------- */
+function parse(sd){
+  const toks = sd.t.split(' ');
+  const words = [], need = [];
+  toks.forEach((tk, i) => {
+    let w = tk, c = false;
+    if(w.endsWith(',')){ c = true; w = w.slice(0, -1); }
+    words.push(w);
+    if(i < toks.length - 1) need.push(c);
+  });
+  let ri = 0;
+  const rules = need.map(c => c ? (sd.r[ri++] || 'EIG') : null);
+  return {words, need, rules, note: sd.n || null};
+}
+function layout(sd){
+  const p = parse(sd);
+  ctx.font = WORD_FONT;
+  let x = 120;
+  const blocks = p.words.map(w => {
+    const b = {w, x, wdt: Math.max(48, Math.ceil(ctx.measureText(w).width) + PAD*2)};
+    x += b.wdt + GAP;
+    return b;
+  });
+  const gaps = p.need.map((need, i) => ({
+    i, need, rule: p.rules[i], cx: blocks[i].x + blocks[i].wdt + GAP/2,
+    state: null, dropT: null, missT: null, landed: false, fromX: 0, fromY: 0
+  }));
+  const last = blocks[blocks.length - 1];
+  const endX = last.x + last.wdt;
+  return Object.assign(p, {blocks, gaps, endX, finishX: endX + 70, errors: 0});
+}
+function standardRound(n){
+  const pick = d => shuffle(SENT.filter(x => x.d === d));
+  const na = Math.ceil(n * .4), nb = Math.ceil(n * .4), nc = Math.max(0, n - na - nb);
+  const a = pick(1).slice(0, na), b = pick(2).slice(0, nb), c = pick(3).slice(0, nc);
+  if(![...a, ...b, ...c].some(x => !x.r.length)){
+    a[a.length - 1] = shuffle(SENT.filter(x => x.d === 1 && !x.r.length))[0];
+    shuffle(a).forEach((v, i) => a[i] = v);
+  }
+  return [...a, ...b, ...c];
+}
+function buildRound(n){
+  const mine = shuffle(own).map(ownToSent);
+  if(G.source === 'eigene' && mine.length) return mine.slice(0, n);
+  if(G.source === 'mix' && mine.length){
+    const k = Math.min(mine.length, Math.ceil(n / 2));
+    const std = standardRound(n).slice(0, n - k);
+    return shuffle([...mine.slice(0, k), ...std]);
+  }
+  return standardRound(n);
+}
+function jumpY(){ if(G.jumpT < 0) return 0; const p = G.jumpT / JUMP_T; return 4 * JUMP_H * p * (1 - p); }
+function zoneBefore(){ return Math.min(G.speed * T().zone, ZONE_MAX); }
+function speedFor(p, passed){ const t = TEMPO[G.tempo]; return t.speed * Math.min(t.cap, 1 + t.ramp * (p.words + passed)); }
+
+/* ---------- Spielablauf ---------- */
+function newPlayer(name, color, n){
+  return {name, color, round: buildRound(n), idx:0, lives: TEMPO[G.tempo].lives, score:0, combo:0, words:0,
+          stats:{need:0, ok:0, miss:0, wrong:0, byRule:{}}, out:false, done:false};
+}
+function startDemo(){
+  G.demo = true;
+  s = layout(DEMO);
+  G.figX = -100; G.speed = 95; G.jumpT = -1; G.introT = 9;
+  popups = []; parts = [];
+  updateHud();
+}
+function startGame(){
+  wakeAudio();
+  readNames();
+  if(G.source !== 'alle' && !own.length) G.source = 'alle';
+  hideOverlays();
+  G.demo = false;
+  document.body.classList.toggle('hc', G.tempo === 'hardcore');
+  G.players = G.multi
+    ? G.names.map((nm, i) => newPlayer(nm, PCOLORS[i], MULTI_LEN))
+    : [newPlayer('Du', PCOLORS[0], SOLO_LEN)];
+  G.cur = 0;
+  if(G.multi) showTurn(); else beginTurn();
+}
+function beginTurn(){
+  hideOverlays();
+  G.demo = false;
+  startSentence();
+  G.state = 'run';
+  updateHud();
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+}
+function startSentence(){
+  const p = P();
+  s = layout(p.round[p.idx]);
+  G.figX = -100; G.jumpT = -1;
+  G.speed = speedFor(p, 0);
+  G.introT = 0; G.hurt = 0;
+  popups = []; parts = [];
+  p.stats.need += s.gaps.filter(g => g.need).length;
+}
+function jump(auto){
+  if(ONLINE.role === 'guest' && !auto){ if(G.state === 'run') sendOnline({type:'jump'}); return; }
+  if(!auto && G.state !== 'run') return;
+  if(G.jumpT >= 0 || !s) return;
+  G.jumpT = 0;
+  sfx('jump');
+  const zb = zoneBefore();
+  const g = s.gaps.find(g => g.state === null && G.figX >= g.cx - zb && G.figX <= g.cx + ZONE_AFTER);
+  if(g) placeComma(g);
+}
+function placeComma(g){
+  g.state = g.need ? 'ok' : 'wrong';
+  g.dropT = 0; g.landed = false;
+  g.fromX = G.figX; g.fromY = GROUND - 26 - jumpY();
+  if(G.demo) return;
+  const p = P();
+  if(g.need){
+    const bonus = G.tempo === 'hardcore' ? 2 : 1;
+    const pts = (100 + Math.min(p.combo, 8) * 25) * bonus;
+    p.score += pts; p.combo++; p.stats.ok++;
+    popup(g.cx, GROUND - 62, '+' + pts, C.cyan);
+    sfx('ok');
+    updateHud();
+  } else {
+    p.stats.wrong++;
+    fault(g, 'Kein Komma!');
+  }
+}
+function miss(g){
+  g.state = 'miss'; g.missT = 0;
+  if(G.demo) return;
+  const p = P();
+  p.stats.miss++;
+  p.stats.byRule[g.rule] = (p.stats.byRule[g.rule] || 0) + 1;
+  fault(g, 'Komma fehlt!');
+}
+function fault(g, msg){
+  const p = P();
+  p.lives = Math.max(0, p.lives - 1);
+  p.combo = 0; G.shake = .32; G.hurt = .55;
+  s.errors++;
+  popup(g.cx, GROUND - 66, msg, C.pink);
+  sfx('err'); buzz(80);
+  updateHud();
+  if(p.lives <= 0){ p.out = true; G.state = 'dying'; G.dieT = 1.0; }
+}
+function finishSentence(){
+  const p = P();
+  G.state = 'review';
+  p.words += s.gaps.length + 1;
+  let refill = false;
+  if(s.errors === 0 && p.lives < TEMPO[G.tempo].lives){ p.lives++; refill = true; }
+  sfx(s.errors === 0 ? 'clean' : 'end');
+  if(s.errors === 0) confetti();
+  updateHud();
+  showReview(refill);
+}
+function next(){
+  $('ovReview').hidden = true;
+  const p = P();
+  if(!p.out){ p.idx++; if(p.idx >= p.round.length) p.done = true; }
+  const n = G.players.length;
+  for(let k = 1; k <= n; k++){
+    const j = (G.cur + k) % n;
+    const q = G.players[j];
+    if(!q.done && !q.out){
+      G.cur = j;
+      if(G.multi) showTurn(); else beginTurn();
+      return;
+    }
+  }
+  showEnd();
+}
+function togglePause(){
+  if(G.state === 'run'){ G.state = 'paused'; $('ovPause').hidden = false; }
+  else if(G.state === 'paused'){ G.state = 'run'; $('ovPause').hidden = true; if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }
+  updateHud();
+}
+function popup(x, y, text, color){ popups.push({x, y, text, color, t:0, life:1.1}); }
+function splash(x, y, color, n){
+  if(reduceMotion) return;
+  for(let k = 0; k < (n || 12); k++){
+    const a = -Math.PI * (0.1 + 0.8 * Math.random());
+    const v = 80 + Math.random() * 130;
+    parts.push({x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: 1.5 + Math.random() * 2.8, t:0, life: .5 + Math.random() * .4, color});
+  }
+}
+function confetti(){
+  if(reduceMotion || !s) return;
+  const cols = [C.cyan, C.pink, C.yellow, '#9b7bff'];
+  for(let k = 0; k < 40; k++) splash(G.figX + (Math.random() - .5) * 200, GROUND - 40, cols[k % 4], 1);
+}
+
+/* ---------- Gerät ---------- */
+function applyDevice(){
+  const d = DEVICES[G.device] ? G.device : 'tablet';
+  document.body.classList.remove('dev-phone', 'dev-tablet', 'dev-pc');
+  document.body.classList.add('dev-' + d);
+  minView = DEVICES[d].view;
+  resize();
+}
+function showDevice(){
+  hideOverlays();
+  G.state = 'device';
+  if(!s) startDemo();
+  document.querySelectorAll('[data-device]').forEach(b => b.classList.toggle('sel', b.dataset.device === G.device));
+  $('ovDevice').hidden = false;
+  updateHud();
+}
+
+/* ---------- Menü ---------- */
+const OVERLAYS = ['ovDevice','ovMenu','ovTurn','ovReview','ovPause','ovOnline','ovEnd'];
+function hideOverlays(){ OVERLAYS.forEach(id => $(id).hidden = true); }
+function showMenu(){
+  hideOverlays();
+  G.state = 'menu';
+  document.body.classList.remove('hc');
+  startDemo();
+  renderMenu();
+  $('ovMenu').hidden = false;
+  updateHud();
+}
+function renderMenu(){
+  if(G.source !== 'alle' && !own.length) G.source = 'alle';
+  document.querySelectorAll('#segMode button').forEach(b => b.classList.toggle('sel', (b.dataset.mode === 'multi') === G.multi));
+  document.querySelectorAll('#tempoBox .opt').forEach(b => b.classList.toggle('sel', b.dataset.tempo === G.tempo));
+  document.querySelectorAll('#segSource button').forEach(b => {
+    b.classList.toggle('sel', b.dataset.source === G.source);
+    if(b.dataset.source !== 'alle') b.disabled = !own.length;
+  });
+  $('srcOwn').textContent = `✏️ Meine (${own.length})`;
+  $('playerBox').hidden = !G.multi;
+  renderPlayers();
+  $('bStart').classList.toggle('hard', G.tempo === 'hardcore');
+  $('bStart').textContent = G.tempo === 'hardcore' ? '💀 Los geht\'s, wenn du dich traust!' : 'Los geht\'s!';
+  $('bDevice').textContent = `Gerät: ${DEVICES[G.device] ? DEVICES[G.device].name : 'Tablet'} ändern`;
+  const best = +store.get('best.' + G.tempo, 0) || 0;
+  $('bestLine').textContent = G.multi ? 'Im Mehrspieler zählt, wer am Ende die meisten Punkte hat.'
+    : best ? `🏆 Dein Rekord (${TEMPO[G.tempo].name}): ${best.toLocaleString('de-DE')} Punkte` : `Noch kein Rekord im Tempo ${TEMPO[G.tempo].name}.`;
+}
+function renderPlayers(){
+  $('playerList').innerHTML = G.names.map((nm, i) =>
+    `<div class="pl-row"><span class="dot" style="color:${PCOLORS[i]}"></span><input id="pName${i}" type="text" maxlength="14" value="${esc(nm)}" aria-label="Name von Spieler ${i + 1}" autocomplete="off"></div>`
+  ).join('');
+  $('bAddPl').disabled = G.names.length >= 4;
+  $('bDelPl').disabled = G.names.length <= 2;
+}
+function readNames(){
+  G.names = G.names.map((nm, i) => {
+    const el = $('pName' + i);
+    const v = el ? el.value.trim() : nm;
+    return v || `Spieler ${i + 1}`;
+  });
+  store.set('names', JSON.stringify(G.names));
+}
+
+/* ---------- Spielerwechsel ---------- */
+function heartsText(p){ return '♥'.repeat(p.lives) || '–'; }
+function boardHtml(highlight){
+  return `<ul class="board">${G.players.map((q, i) => `
+    <li class="${i === highlight ? 'now' : ''}" style="color:${q.color}">
+      <span class="dot"></span><span class="nm">${esc(q.name)}</span>
+      <span class="hs">${q.out ? '<span class="chip bad">raus</span>' : heartsText(q)}</span>
+      <span class="sc">${q.score.toLocaleString('de-DE')}</span>
+    </li>`).join('')}</ul>`;
+}
+function showTurn(){
+  hideOverlays();
+  G.state = 'turn';
+  startDemo();
+  const p = P();
+  $('ovTurn').innerHTML = `
+    <div class="card" role="dialog" aria-label="Spielerwechsel">
+      <p class="eyebrow" style="text-align:center">${esc(p.name)} · Satz ${p.idx + 1} von ${p.round.length}</p>
+      <h2 class="turn-name" style="color:${p.color}">${esc(p.name)} ist dran!</h2>
+      <p class="center">Gib das Gerät weiter. Die anderen schauen zu. 👀</p>
+      ${boardHtml(G.cur)}
+      <button class="btn" id="bGo" type="button" style="flex:none">Los, ich bin bereit!</button>
+    </div>`;
+  $('bGo').addEventListener('click', beginTurn);
+  $('ovTurn').hidden = false;
+  G.turnAt = performance.now();
+  updateHud();
+}
+
+/* ---------- Auswertung ---------- */
+function showReview(refill){
+  const p = P();
+  let sent = '';
+  s.words.forEach((w, i) => {
+    sent += esc(w);
+    const g = s.gaps[i];
+    if(!g) return;
+    if(g.need){
+      const cls = g.state === 'ok' ? 'ok' : g.state === 'miss' ? 'miss' : 'sol';
+      const lbl = cls === 'ok' ? 'Komma richtig gesetzt' : cls === 'miss' ? 'Komma fehlte' : 'Hier gehört ein Komma hin';
+      sent += `<span class="c ${cls}" aria-label="${lbl}">,</span>`;
+    } else if(g.state === 'wrong'){
+      sent += `<span class="c wrong" aria-label="Komma zu viel">,</span>`;
+    }
+    sent += ' ';
+  });
+
+  // Regeln gruppieren; die Erklärung nur zeigen, wenn etwas schiefging.
+  const groups = [];
+  s.gaps.filter(g => g.need).forEach(g => {
+    let gr = groups.find(x => x.rule === g.rule);
+    if(!gr){ gr = {rule: g.rule, items: []}; groups.push(gr); }
+    gr.items.push(g);
+  });
+  let lis = groups.map(gr => {
+    const r = RULES[gr.rule] || RULES.EIG;
+    const ws = gr.items.map(g => `„${esc(s.words[g.i])}“`);
+    const where = (gr.items.length > 1 ? 'Kommas nach ' : 'Komma nach ') + joinDe(ws);
+    const missed = gr.items.some(g => g.state === 'miss');
+    const open = gr.items.some(g => g.state === null);
+    const chip = missed ? '<span class="chip bad">verpasst</span>' : open ? '<span class="chip">nicht erreicht</span>' : '<span class="chip good">✓ richtig</span>';
+    return `<li><div class="li-top">${r.name}${chip}</div><div class="where">${where}</div>${missed || open ? `<p>${r.text}</p>` : ''}</li>`;
+  }).join('');
+  const wrongs = s.gaps.filter(g => g.state === 'wrong');
+  if(wrongs.length){
+    lis += `<li><div class="li-top">Komma zu viel<span class="chip bad">Fehler</span></div><p>Nach ${joinDe(wrongs.map(g => `„${esc(s.words[g.i])}“`))} gehört kein Komma.${s.note ? ' ' + esc(s.note) : ''}</p></li>`;
+  } else if(s.note){
+    lis += `<li><div class="li-top">Kein Komma<span class="chip good">✓ richtig</span></div><p>${esc(s.note)}</p></li>`;
+  }
+
+  let verdict, vcls;
+  if(p.out){ verdict = G.multi ? `💔 ${esc(p.name)} ist raus` : '💔 Keine Herzen mehr'; vcls = 'bad'; }
+  else if(s.errors === 0){ verdict = refill ? '⭐ Fehlerfrei · +1 ❤️' : '⭐ Fehlerfrei!'; vcls = 'good'; }
+  else { verdict = s.errors === 1 ? '1 Fehler' : `${s.errors} Fehler`; vcls = 'bad'; }
+
+  const lastSolo = !G.multi && (p.out || p.idx >= p.round.length - 1);
+  const label = G.multi ? 'Weiter →' : lastSolo ? 'Zum Ergebnis 🏁' : 'Nächster Satz →';
+  $('ovReview').innerHTML = `
+    <div class="card" role="dialog" aria-label="Auswertung">
+      <div class="rv-head"><p class="eyebrow">${G.multi ? esc(p.name) + ' · ' : ''}Satz ${p.idx + 1} von ${p.round.length}</p><span class="verdict ${vcls}">${verdict}</span></div>
+      <p class="rv-sent">${sent.trim()}</p>
+      <p class="legend"><span><span class="c ok">,</span> richtig</span><span><span class="c miss">,</span> fehlte</span><span><span class="c wrong">,</span> zu viel</span></p>
+      <ul class="rv-rules">${lis}</ul>
+      <button class="btn" id="bNext" type="button" style="flex:none">${label}</button>
+    </div>`;
+  $('bNext').addEventListener('click', next);
+  $('ovReview').scrollTop = 0;
+  $('ovReview').hidden = false;
+  G.reviewAt = performance.now();
+  updateHud();
+}
+
+/* ---------- Ergebnis ---------- */
+function grade(acc){
+  if(acc >= .92) return 1;
+  if(acc >= .81) return 2;
+  if(acc >= .67) return 3;
+  if(acc >= .5) return 4;
+  if(acc >= .3) return 5;
+  return 6;
+}
+function accOf(p){ const d = p.stats.need + p.stats.wrong; return d ? p.stats.ok / d : 0; }
+const COMMENTS = {
+  1:'Ausgezeichnet! Du hast die Kommaregeln im Griff. 🎉',
+  2:'Sehr stark, nur kleine Fehler!',
+  3:'Solide! Schau dir die markierten Regeln noch einmal an.',
+  4:'Ausreichend. Mit etwas Übung wird das besser.',
+  5:'Da geht noch was. Lies die Regeln nach und versuch es langsamer.',
+  6:'Nicht aufgeben! Nimm das langsame Tempo und probier es nochmal.'
+};
+function showEnd(){
+  hideOverlays();
+  if(G.multi) showEndMulti(); else showEndSolo();
+  $('bAgain').addEventListener('click', startGame);
+  $('bMenu').addEventListener('click', showMenu);
+  G.state = 'end';
+  document.body.classList.remove('hc');
+  startDemo();
+  $('ovEnd').hidden = false;
+  updateHud();
+}
+function showEndSolo(){
+  const p = G.players[0], st = p.stats;
+  const acc = accOf(p);
+  const note = grade(acc);
+  const key = 'best.' + G.tempo;
+  const best = +store.get(key, 0) || 0;
+  const isRec = p.score > best;
+  if(isRec) store.set(key, p.score);
+  const weak = Object.entries(st.byRule).filter(([k]) => k !== 'EIG').sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k]) => RULES[k].name);
+  let focus = '';
+  if(weak.length) focus = `<p class="focus">💡 Übe besonders: <b>${weak.join('</b> und <b>')}</b></p>`;
+  else if(st.wrong) focus = `<p class="focus">💡 Spring nur dort, wo eine Regel ein Komma verlangt.</p>`;
+  const played = p.out ? p.idx + 1 : p.done ? p.round.length : p.idx;
+
+  $('ovEnd').innerHTML = `
+    <div class="card" role="dialog" aria-label="Ergebnis">
+      <p class="eyebrow">${TEMPO[G.tempo].name} · ${p.out ? 'Keine Herzen mehr' : p.done ? 'Runde geschafft' : 'Runde beendet'} · ${played} von ${p.round.length} Sätzen</p>
+      <div class="end-top">
+        <div class="grade" aria-label="Note ${note}">${note}</div>
+        <p class="teacher">${COMMENTS[note]}</p>
+      </div>
+      <div class="tiles">
+        <div class="tile ok"><b>${st.ok}/${st.need}</b><span>richtig</span></div>
+        <div class="tile bad"><b>${st.miss}</b><span>vergessen</span></div>
+        <div class="tile bad"><b>${st.wrong}</b><span>zu viel</span></div>
+        <div class="tile"><b>${Math.round(acc * 100)}%</b><span>Treffer</span></div>
+        <div class="tile"><b>${p.score.toLocaleString('de-DE')}</b><span>Punkte</span></div>
+        <div class="tile"><b>${Math.max(best, p.score).toLocaleString('de-DE')}</b><span>Rekord</span></div>
+      </div>
+      ${isRec ? '<p class="rec">🏆 Neuer Rekord!</p>' : ''}
+      ${focus}
+      <div class="row"><button class="btn" id="bAgain" type="button">Nochmal spielen</button><button class="btn ghost" id="bMenu" type="button">Zum Menü</button></div>
+    </div>`;
+  if(isRec) sfx('win');
+}
+function showEndMulti(){
+  const ranked = G.players.slice().sort((a, b) => b.score - a.score || accOf(b) - accOf(a));
+  const top = ranked[0];
+  const tie = ranked.length > 1 && ranked[1].score === top.score && accOf(ranked[1]) === accOf(top);
+  const medals = ['🥇','🥈','🥉','4.'];
+  const rows = ranked.map((q, i) => `
+    <li style="color:${q.color}">
+      <span class="md">${medals[i]}</span><span class="dot"></span>
+      <span class="nm">${esc(q.name)} <small style="color:var(--muted);font-weight:400">· ${q.stats.ok}/${q.stats.need} richtig · ${Math.round(accOf(q) * 100)}% · Note ${grade(accOf(q))}</small></span>
+      ${q.out ? '<span class="chip bad">raus</span>' : ''}
+      <span class="sc">${q.score.toLocaleString('de-DE')}</span>
+    </li>`).join('');
+  $('ovEnd').innerHTML = `
+    <div class="card" role="dialog" aria-label="Ergebnis Mehrspieler">
+      <p class="eyebrow" style="text-align:center">Mehrspieler · ${TEMPO[G.tempo].name}</p>
+      <p class="winner" style="color:${tie ? 'var(--yellow)' : top.color}">${tie ? '🤝 Unentschieden!' : `🏆 ${esc(top.name)} gewinnt!`}</p>
+      <ul class="board">${rows}</ul>
+      <div class="row"><button class="btn" id="bAgain" type="button">Revanche!</button><button class="btn ghost" id="bMenu" type="button">Zum Menü</button></div>
+    </div>`;
+  sfx('win');
+  confetti();
+}
+
+/* ---------- Eigene Sätze verwalten ---------- */
+function saveOwn(){ store.set('own', JSON.stringify(own)); }
+function renderOwn(){
+  $('ownCount').textContent = `Gespeichert (${own.length})`;
+  if(!own.length){
+    $('ownList').innerHTML = '<li class="empty-own">Noch keine eigenen Sätze. Schreib oben deinen ersten!</li>';
+    return;
+  }
+  $('ownList').innerHTML = own.map((t, i) => {
+    const rules = guessRules(t);
+    const chips = rules.length ? rules.map(r => `<span class="chip">${RULES[r].name}</span>`).join('') : '<span class="chip">kein Komma</span>';
+    return `<li><div class="tx">${esc(t).replace(/,/g, '<span class="ex-c">,</span>')}<div>${chips}</div></div>
+      <button class="ib" type="button" data-del="${i}" aria-label="Satz löschen"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button></li>`;
+  }).join('');
+}
+function addOwn(){
+  const lines = $('ownInput').value.split(/\n+/).map(normalize).filter(Boolean);
+  const msg = $('ownMsg');
+  if(!lines.length){ msg.className = 'own-msg err'; msg.textContent = 'Schreib zuerst einen Satz in das Feld.'; return; }
+  let added = 0, skipped = 0;
+  lines.forEach(t => {
+    if(t.split(' ').length < 3 || t.length > 160 || own.includes(t)){ skipped++; return; }
+    own.push(t); added++;
+  });
+  saveOwn(); renderOwn();
+  if(added){
+    $('ownInput').value = '';
+    msg.className = 'own-msg ok';
+    msg.textContent = `${added === 1 ? 'Satz' : added + ' Sätze'} gespeichert!${skipped ? ` ${skipped} übersprungen (zu kurz, zu lang oder doppelt).` : ''}`;
+  } else {
+    msg.className = 'own-msg err';
+    msg.textContent = 'Nichts gespeichert. Ein Satz braucht mindestens 3 Wörter, höchstens 160 Zeichen und darf nicht doppelt sein.';
+  }
+}
+function openOwn(){ $('ownMsg').textContent = ''; renderOwn(); $('ovOwn').hidden = false; }
+function closeOwn(){ $('ovOwn').hidden = true; if(G.state === 'menu') renderMenu(); }
+
+function openRules(){
+  if(G.state === 'run') togglePause();
+  $('ovRules').hidden = false;
+}
+function closeRules(){ $('ovRules').hidden = true; }
+
+/* ---------- HUD ---------- */
+const HEART = '<svg class="heart%c" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
+const ICON_SOUND_ON = '<svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>';
+const ICON_SOUND_OFF = '<svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
+const ICON_MUSIC_ON = '<svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>';
+const ICON_MUSIC_OFF = '<svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/><path d="M3 3l18 18"/></svg>';
+const ICON_PAUSE ='<svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg>';
+const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg>';
+function updateHud(){
+  const inGame = ['run','paused','dying','review','turn'].includes(G.state) && G.players.length;
+  const p = inGame ? P() : null;
+  const maxL = inGame ? TEMPO[G.tempo].lives : 4;
+  const pl = $('hPlayer');
+  pl.hidden = !(p && G.multi);
+  if(p) pl.innerHTML = `<span class="dot" style="color:${p.color}"></span>${esc(p.name)}`;
+  $('hSatz').innerHTML = `<small>Satz</small> ${p ? `${Math.min(p.idx + 1, p.round.length)}/${p.round.length}` : '–'}`;
+  let h = '';
+  for(let i = 0; i < maxL; i++) h += HEART.replace('%c', (p ? i < p.lives : true) ? '' : ' empty');
+  $('hLives').innerHTML = h;
+  $('hLives').setAttribute('aria-label', `${p ? p.lives : maxL} von ${maxL} Herzen`);
+  $('hScore').textContent = p ? p.score.toLocaleString('de-DE') : '0';
+  const combo = $('hCombo');
+  combo.hidden = !(p && p.combo >= 2);
+  if(p) combo.textContent = `🔥 ×${p.combo}`;
+  updateSpeed();
+  const pb = $('bPause');
+  pb.disabled = ONLINE.role === 'guest' || !(G.state === 'run' || G.state === 'paused');
+  pb.innerHTML = G.state === 'paused' ? ICON_PLAY : ICON_PAUSE;
+  $('bSound').innerHTML = soundOn ? ICON_SOUND_ON : ICON_SOUND_OFF;
+  $('bMusic').innerHTML = MUSIC.on ? ICON_MUSIC_ON : ICON_MUSIC_OFF;
+  $('bJump').classList.toggle('off', G.state !== 'run');
+}
+let lastSpeedTxt = '';
+function updateSpeed(){
+  const el = $('hSpeed');
+  const show = !G.demo && (G.state === 'run' || G.state === 'paused' || G.state === 'dying');
+  el.hidden = !show;
+  if(!show) return;
+  const txt = `⚡ ${(G.speed / TEMPO[G.tempo].speed).toFixed(2).replace('.', ',')}×`;
+  if(txt !== lastSpeedTxt){ el.textContent = txt; lastSpeedTxt = txt; }
+}
+
+/* ---------- Update ---------- */
+function update(dt){
+  G.time += dt;
+  if(G.shake > 0) G.shake = Math.max(0, G.shake - dt);
+  if(G.hurt > 0 && G.state !== 'dying') G.hurt = Math.max(0, G.hurt - dt);
+  popups.forEach(p => { p.t += dt; p.y -= 30 * dt; });
+  popups = popups.filter(p => p.t < p.life);
+  parts.forEach(p => { p.t += dt; p.vy += 520 * dt; p.x += p.vx * dt; p.y += p.vy * dt; });
+  parts = parts.filter(p => p.t < p.life);
+  if(!s) return;
+
+  s.gaps.forEach(g => {
+    if(g.dropT !== null){
+      g.dropT += dt;
+      if(!g.landed && g.dropT >= DROP_T){ g.landed = true; if(g.state === 'ok') splash(g.cx, GROUND + BASE - 8, C.cyan); }
+    }
+    if(g.missT !== null) g.missT += dt;
+  });
+
+  const moving = G.demo || G.state === 'run';
+  if((moving || G.state === 'dying') && G.jumpT >= 0){
+    G.jumpT += dt;
+    if(G.jumpT >= JUMP_T) G.jumpT = -1;
+  }
+  if(G.state === 'dying'){
+    G.dieT -= dt;
+    if(G.dieT <= 0){ G.state = 'review'; G.hurt = 0; showReview(false); }
+    return;
+  }
+  if(!moving) return;
+
+  // Mit jedem überquerten Wort wird die Figur schneller.
+  if(!G.demo){
+    const passed = s.gaps.filter(g => g.cx < G.figX).length;
+    G.speed = speedFor(P(), passed);
+    updateSpeed();
+  }
+  G.figX += G.speed * dt;
+  G.introT += dt;
+  for(const g of s.gaps){
+    if(G.demo && g.need && g.state === null && G.jumpT < 0 && G.figX >= g.cx - 46) jump(true);
+    if(g.state === null && G.figX > g.cx + ZONE_AFTER){
+      if(g.need){ miss(g); if(G.state !== 'run' && !G.demo) return; }
+      else { g.state = 'skip'; if(!G.demo){ P().score += 10; updateHud(); } }
+    }
+  }
+  if(G.figX > s.finishX){
+    if(G.demo) startDemo();
+    else finishSentence();
+  }
+}
+
+/* ---------- Zeichnen ---------- */
+function rrect(x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function drawSky(camX){
+  const hc = G.tempo === 'hardcore' && !G.demo;
+  const g = ctx.createLinearGradient(0, 0, 0, viewH);
+  g.addColorStop(0, hc ? '#1a0716' : C.bg1); g.addColorStop(1, hc ? '#4a0d2a' : C.bg2);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, viewW, viewH);
+
+  // Mond
+  const mx = viewW * .86, my = Math.max(46, offY + 40);
+  ctx.save();
+  ctx.shadowColor = hc ? 'rgba(255,90,90,.8)' : 'rgba(255,230,160,.8)'; ctx.shadowBlur = 40;
+  ctx.fillStyle = hc ? '#ff8080' : '#ffeec2'; ctx.beginPath(); ctx.arc(mx, my, 24, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = hc ? '#1a0716' : C.bg1; ctx.globalAlpha = .9;
+  ctx.beginPath(); ctx.arc(mx + 10, my - 6, 20, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  const P_ = 1600;
+  STARS.forEach(st => {
+    const x = (((st.x - camX * .12) % P_) + P_) % P_;
+    if(x > viewW) return;
+    ctx.globalAlpha = .35 + .45 * (0.5 + 0.5 * Math.sin(G.time * 2 + st.tw));
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x, st.y * (offY + GROUND - 30), st.r, 0, Math.PI * 2); ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  hills(camX * .2, 90, offY + GROUND - 10, hc ? 'rgba(200,50,90,.22)' : 'rgba(94,70,200,.28)', 1);
+  hills(camX * .4, 60, offY + GROUND + 30, hc ? 'rgba(120,20,60,.5)' : 'rgba(60,40,150,.45)', 50);
+
+  const gl = ctx.createLinearGradient(0, offY + GROUND, 0, viewH);
+  gl.addColorStop(0, 'rgba(62,240,255,0)'); gl.addColorStop(1, hc ? 'rgba(255,79,123,.12)' : 'rgba(62,240,255,.10)');
+  ctx.fillStyle = gl; ctx.fillRect(0, offY + GROUND, viewW, viewH - offY - GROUND);
+}
+function hills(shift, amp, top, color, seed){
+  const step = 120;
+  const i0 = Math.floor(shift / step) - 1;
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.moveTo(0, viewH);
+  for(let i = i0; (i * step - shift) < viewW + step * 2; i++){
+    const x = i * step - shift, y = top - hash(i + seed) * amp;
+    const nx = x + step, ny = top - hash(i + 1 + seed) * amp;
+    if(i === i0) ctx.lineTo(x, y);
+    ctx.quadraticCurveTo(x + step / 2, Math.min(y, ny) - 18, nx, ny);
+  }
+  ctx.lineTo(viewW, viewH); ctx.closePath(); ctx.fill();
+}
+function drawBlock(b){
+  const y = GROUND, h = BLOCK_H;
+  ctx.fillStyle = 'rgba(0,0,0,.35)';
+  rrect(b.x + 4, y + 7, b.wdt, h, 14); ctx.fill();
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, C.plat1); g.addColorStop(1, C.plat2);
+  ctx.fillStyle = g;
+  rrect(b.x, y, b.wdt, h, 14); ctx.fill();
+  ctx.save();
+  ctx.shadowColor = C.edge; ctx.shadowBlur = 10;
+  ctx.fillStyle = C.edge;
+  rrect(b.x + 6, y, b.wdt - 12, 4, 2); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = C.text; ctx.font = WORD_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText(b.w, b.x + b.wdt / 2, y + BASE);
+}
+function drawComma(x, y, color, sc){
+  ctx.save();
+  ctx.translate(x, y);
+  if(sc && sc !== 1) ctx.scale(sc, sc);
+  ctx.shadowColor = color; ctx.shadowBlur = 16;
+  ctx.fillStyle = color; ctx.font = COMMA_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText(',', 0, 0);
+  ctx.restore();
+}
+function drawGap(g){
+  const cy = GROUND + BASE + 2;
+  if(g.state === 'ok' || g.state === 'wrong'){
+    let px = g.cx, py = cy, sc = 1;
+    if(g.dropT !== null && g.dropT < DROP_T){
+      const p = g.dropT / DROP_T;
+      px = lerp(g.fromX, g.cx, p); py = lerp(g.fromY, cy, p * p); sc = 1.3 - .3 * p;
+    }
+    drawComma(px, py, g.state === 'ok' ? C.cyan : C.pink, sc);
+    if(g.state === 'wrong' && g.landed){
+      ctx.strokeStyle = C.pink; ctx.lineWidth = 4; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(g.cx - 12, cy + 8); ctx.lineTo(g.cx + 12, cy - 24); ctx.stroke();
+    }
+  } else if(g.state === 'miss'){
+    const p = Math.min(1, (g.missT || 0) / .22);
+    drawComma(g.cx, cy, C.pink, 1.7 - .7 * p);
+    if(p >= 1){
+      ctx.strokeStyle = C.pink; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.ellipse(g.cx + 1, cy - 8, 14, 18, -.2, 0, Math.PI * 2); ctx.stroke();
+    }
+  } else if(g.state === null){
+    if(!T().hints) return; // Hardcore: keine Sprunghilfe
+    const zb = zoneBefore();
+    const active = (G.state === 'run' || G.demo) && G.figX >= g.cx - zb && G.figX <= g.cx + ZONE_AFTER;
+    if(active){
+      const pulse = 1 + Math.sin(G.time * 14) * .12;
+      ctx.save();
+      ctx.shadowColor = C.yellow; ctx.shadowBlur = 18;
+      ctx.fillStyle = 'rgba(255,216,77,.25)'; ctx.strokeStyle = C.yellow; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(g.cx, cy - 8, 12 * pulse, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,.3)';
+      ctx.beginPath(); ctx.arc(g.cx, cy - 8, 4, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+}
+function drawFinish(x){
+  const top = GROUND - 92;
+  ctx.strokeStyle = '#d7dcff'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x, GROUND + 4); ctx.lineTo(x, top); ctx.stroke();
+  const cell = 9;
+  for(let r = 0; r < 4; r++) for(let c = 0; c < 5; c++){
+    ctx.fillStyle = (r + c) % 2 ? C.dark : '#ffffff';
+    ctx.fillRect(x + 2 + c * cell, top + r * cell + Math.sin(c * .9 + G.time * 4) * 2, cell, cell);
+  }
+}
+function drawFigure(){
+  const x = G.figX, jy = jumpY();
+  const running = (G.state === 'run' || G.demo);
+  const air = G.jumpT >= 0;
+  const footY = GROUND - jy;
+  const hurt = G.hurt > 0 || G.state === 'dying';
+  const base = (!G.demo && G.players.length) ? P().color : C.cyan;
+  const col = hurt ? C.pink : base;
+
+  ctx.globalAlpha = .35 * (1 - jy / 120); ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.ellipse(x, GROUND + 1, 14 * (1 - jy / 160), 3.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  const hipY = footY - 13;
+  ctx.strokeStyle = col; ctx.lineWidth = 3.6; ctx.lineCap = 'round';
+  ctx.beginPath();
+  if(air){
+    ctx.moveTo(x - 4, hipY); ctx.lineTo(x - 9, footY - 5);
+    ctx.moveTo(x + 4, hipY); ctx.lineTo(x + 9, footY - 7);
+  } else if(running){
+    const ph = G.figX / 7;
+    const a = Math.sin(ph) * 7, b = Math.sin(ph + Math.PI) * 7;
+    ctx.moveTo(x - 3, hipY); ctx.lineTo(x - 3 + a, footY - Math.max(0, Math.cos(ph)) * 3);
+    ctx.moveTo(x + 3, hipY); ctx.lineTo(x + 3 + b, footY - Math.max(0, -Math.cos(ph)) * 3);
+  } else {
+    ctx.moveTo(x - 4, hipY); ctx.lineTo(x - 5, footY);
+    ctx.moveTo(x + 4, hipY); ctx.lineTo(x + 5, footY);
+  }
+  ctx.stroke();
+
+  const bob = running && !air ? Math.abs(Math.sin(G.figX / 7)) * 1.5 : Math.sin(G.time * 3) * .8;
+  const by = hipY - 12 - bob;
+  const sy = air ? 1.06 : 1;
+  ctx.save();
+  ctx.shadowColor = col; ctx.shadowBlur = 22;
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  for(let k = 0; k <= 20; k++){
+    const a = k / 20 * Math.PI * 2;
+    const r = 14 + Math.sin(a * 3 + G.time * 5) * .9;
+    const px = x + Math.cos(a) * r * 1.05, py = by + Math.sin(a) * r * sy;
+    if(k) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+  }
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x - 1, by - 26);
+  ctx.quadraticCurveTo(x + 6, by - 17, x, by - 12);
+  ctx.quadraticCurveTo(x - 7, by - 17, x - 1, by - 26);
+  ctx.fill();
+  ctx.restore();
+  ctx.globalAlpha = .45; ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.ellipse(x - 7, by - 5, 3, 5, -.4, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  const e1x = x + 1, e2x = x + 9, ey = by - 3;
+  if(hurt){
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.2;
+    [e1x, e2x].forEach(ex => { ctx.beginPath(); ctx.moveTo(ex - 3, ey - 3); ctx.lineTo(ex + 3, ey + 3); ctx.moveTo(ex + 3, ey - 3); ctx.lineTo(ex - 3, ey + 3); ctx.stroke(); });
+  } else {
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(e1x, ey, 4.4, 0, Math.PI * 2); ctx.arc(e2x, ey - 1, 4.4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = C.dark;
+    const look = air ? 1 : 0;
+    ctx.beginPath(); ctx.arc(e1x + 1.6, ey - look, 2.2, 0, Math.PI * 2); ctx.arc(e2x + 1.6, ey - 1 - look, 2.2, 0, Math.PI * 2); ctx.fill();
+  }
+}
+function draw(){
+  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
+  const frac = viewW < 560 ? .18 : .24;
+  const camX = s ? G.figX - viewW * frac : 0;
+  drawSky(camX);
+  if(!s) return;
+  let sx = 0, sy = 0;
+  if(G.shake > 0 && !reduceMotion){ const k = G.shake / .32; sx = (Math.random() - .5) * 10 * k; sy = (Math.random() - .5) * 7 * k; }
+
+  ctx.save();
+  ctx.translate(-camX + sx, offY + sy);
+
+  ctx.strokeStyle = 'rgba(138,245,255,.35)'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
+  ctx.beginPath();
+  ctx.moveTo(-400, GROUND + 1); ctx.lineTo(s.blocks[0].x, GROUND + 1);
+  for(let i = 0; i < s.blocks.length - 1; i++){
+    const a = s.blocks[i], b = s.blocks[i + 1];
+    ctx.moveTo(a.x + a.wdt, GROUND + 1); ctx.lineTo(b.x, GROUND + 1);
+  }
+  ctx.moveTo(s.endX, GROUND + 1); ctx.lineTo(s.endX + 900, GROUND + 1);
+  ctx.stroke(); ctx.setLineDash([]);
+
+  s.blocks.forEach(b => { if(b.x + b.wdt > camX - 40 && b.x < camX + viewW + 40) drawBlock(b); });
+  s.gaps.forEach(g => { if(g.cx > camX - 40 && g.cx < camX + viewW + 40) drawGap(g); });
+  drawFinish(s.endX + 40);
+
+  drawFigure();
+
+  parts.forEach(p => { ctx.globalAlpha = 1 - p.t / p.life; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); });
+  ctx.globalAlpha = 1;
+  popups.forEach(p => {
+    ctx.globalAlpha = Math.max(0, 1 - p.t / p.life);
+    ctx.save();
+    ctx.shadowColor = p.color; ctx.shadowBlur = 12;
+    ctx.fillStyle = p.color; ctx.font = FONT(28, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(p.text, p.x, p.y);
+    ctx.restore();
+  });
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  if(!G.demo && (G.state === 'run' || G.state === 'paused') && G.introT < 1.8){
+    const p = P();
+    ctx.globalAlpha = G.introT < 1.3 ? 1 : Math.max(0, (1.8 - G.introT) / .5);
+    ctx.save();
+    ctx.shadowColor = p.color; ctx.shadowBlur = 20;
+    ctx.fillStyle = C.text; ctx.font = FONT(36, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`${G.multi ? p.name + ' · ' : ''}Satz ${p.idx + 1} von ${p.round.length}`, viewW / 2, Math.max(40, offY + 50));
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+}
+
+/* ---------- Größe & Schleife ---------- */
+function resize(){
+  const r = stage.getBoundingClientRect();
+  cssW = Math.max(1, r.width); cssH = Math.max(1, r.height);
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+  // Genug Vorschau nach vorne behalten, auch wenn das Spielfeld hoch ist.
+  scale = Math.min(cssH / WORLD_H, cssW / minView);
+  viewW = cssW / scale; viewH = cssH / scale;
+  offY = (viewH - WORLD_H) * .55;
+}
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(.05, Math.max(0, (now - last) / 1000));
+  last = now;
+  if(ONLINE.role === 'guest'){ draw(); }
+  else { update(dt); draw(); }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- Eingaben ---------- */
+window.addEventListener('keydown', e => {
+  const tag = e.target && e.target.tagName;
+  if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+  const k = e.code;
+  const isJump = k === 'Space' || k === 'ArrowUp' || k === 'KeyW';
+  if(!$('ovRules').hidden){ if(k === 'Escape') closeRules(); return; }
+  if(!$('ovOwn').hidden){ if(k === 'Escape') closeOwn(); return; }
+  if(G.state === 'run' || G.state === 'dying'){
+    if(isJump){ e.preventDefault(); if(!e.repeat) jump(false); return; }
+    if(k === 'KeyP' || k === 'Escape'){ e.preventDefault(); if(G.state === 'run') togglePause(); return; }
+  } else if(G.state === 'paused'){
+    if(k === 'KeyP' || k === 'Escape' || k === 'Space'){ e.preventDefault(); togglePause(); }
+  } else if(G.state === 'review'){
+    if((k === 'Space' || k === 'Enter') && !e.repeat){
+      e.preventDefault();
+      if(performance.now() - G.reviewAt > 450) next();
+    }
+  } else if(G.state === 'turn'){
+    if((k === 'Space' || k === 'Enter') && !e.repeat){
+      e.preventDefault();
+      if(performance.now() - G.turnAt > 450) beginTurn();
+    }
+  } else if(G.state === 'menu'){
+    if(k === 'Enter' && tag !== 'BUTTON'){ e.preventDefault(); startGame(); }
+  }
+});
+stage.addEventListener('pointerdown', e => {
+  if(G.state === 'run'){ e.preventDefault(); jump(false); }
+});
+const bJump = $('bJump');
+bJump.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  bJump.classList.add('down');
+  jump(false);
+});
+['pointerup','pointercancel','pointerleave'].forEach(t => bJump.addEventListener(t, () => bJump.classList.remove('down')));
+bJump.addEventListener('contextmenu', e => e.preventDefault());
+
+document.querySelectorAll('[data-device]').forEach(b => b.addEventListener('click', () => {
+  G.device = b.dataset.device;
+  store.set('device', G.device);
+  applyDevice();
+  showMenu();
+}));
+document.querySelectorAll('#segMode button').forEach(b => b.addEventListener('click', () => {
+  readNames();
+  G.multi = b.dataset.mode === 'multi';
+  store.set('multi', G.multi ? '1' : '0');
+  renderMenu();
+}));
+document.querySelectorAll('#tempoBox .opt').forEach(b => b.addEventListener('click', () => {
+  readNames();
+  G.tempo = b.dataset.tempo;
+  store.set('tempo', G.tempo);
+  renderMenu();
+}));
+document.querySelectorAll('#segSource button').forEach(b => b.addEventListener('click', () => {
+  readNames();
+  G.source = b.dataset.source;
+  store.set('source', G.source);
+  renderMenu();
+}));
+$('bAddPl').addEventListener('click', () => {
+  readNames();
+  if(G.names.length < 4) G.names.push(`Spieler ${G.names.length + 1}`);
+  renderPlayers();
+  const el = $('pName' + (G.names.length - 1)); if(el){ el.focus(); el.select(); }
+});
+$('bDelPl').addEventListener('click', () => {
+  readNames();
+  if(G.names.length > 2) G.names.pop();
+  store.set('names', JSON.stringify(G.names));
+  renderPlayers();
+});
+$('bStart').addEventListener('click', startGame);
+$('bDevice').addEventListener('click', () => { readNames(); showDevice(); });
+$('bOwn').addEventListener('click', () => { readNames(); openOwn(); });
+$('bOwnClose').addEventListener('click', closeOwn);
+$('bOwnAdd').addEventListener('click', addOwn);
+$('ownList').addEventListener('click', e => {
+  const b = e.target.closest('[data-del]');
+  if(!b) return;
+  own.splice(+b.dataset.del, 1);
+  saveOwn(); renderOwn();
+  $('ownMsg').className = 'own-msg'; $('ownMsg').textContent = 'Satz gelöscht.';
+});
+
+$('bPause').addEventListener('click', togglePause);
+$('bResume').addEventListener('click', togglePause);
+$('bQuit').addEventListener('click', () => { $('ovPause').hidden = true; showEnd(); });
+$('bSound').addEventListener('click', () => {
+  soundOn = !soundOn; store.set('sound', soundOn ? '1' : '0');
+  if(soundOn) ensureAudio();
+  updateHud();
+});
+$('bMusic').addEventListener('click', () => {
+  MUSIC.on = !MUSIC.on; store.set('music', MUSIC.on ? '1' : '0');
+  if(MUSIC.on) wakeAudio(); else musicStop();
+  updateHud();
+});
+// Browser erlauben Ton erst nach der ersten Berührung.
+document.addEventListener('pointerdown', () => { if(MUSIC.on || soundOn) wakeAudio(); });
+$('bRules').addEventListener('click', openRules);
+$('bRulesClose').addEventListener('click', closeRules);
+$('bRulesOk').addEventListener('click', closeRules);
+
+// Vollbild (wird ausgeblendet, wenn das Gerät es nicht kann)
+const root = document.documentElement;
+const reqFs = root.requestFullscreen || root.webkitRequestFullscreen;
+const bFull = $('bFull');
+if(!reqFs) bFull.hidden = true;
+bFull.addEventListener('click', () => {
+  const cur = document.fullscreenElement || document.webkitFullscreenElement;
+  try{
+    if(cur){ const ex = document.exitFullscreen || document.webkitExitFullscreen; const r = ex.call(document); if(r && r.catch) r.catch(() => {}); }
+    else { const r = reqFs.call(root); if(r && r.catch) r.catch(() => {}); }
+  }catch(e){}
+});
+
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden){ if(G.state === 'run') togglePause(); musicStop(); }
+  else if(MUSIC.on && actx) musicStart();
+});
+if(window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+else window.addEventListener('resize', resize);
+
+/* ---------- Regelkarten ---------- */
+$('rulesGrid').innerHTML = Object.entries(RULES).filter(([, r]) => !r.hide).map(([k, r]) =>
+  `<article class="rule${k === 'KEIN' ? ' no' : ''}"><h3>${r.name}</h3><p>${r.text}</p><p class="ex">${esc(r.ex).replace(/,/g, '<span class="ex-c">,</span>')}</p></article>`
+).join('');
+
+/* ---------- Online-Modus (Peer-to-Peer, kein eigener Server nötig) ---------- */
+const ONLINE = {role:null, code:'', peer:null, conn:null, connected:false, lastState:'', timer:null, applying:false};
+function onlineStatus(text){ const el=$('onlineStatus'); if(el) el.textContent=text; }
+function sendOnline(data){
+  try{ if(ONLINE.conn && ONLINE.conn.open) ONLINE.conn.send(data); }catch(e){}
+}
+function onlineShow(title, intro){
+  hideOverlays();
+  $('onlineTitle').textContent=title;
+  $('onlineIntro').textContent=intro;
+  $('onlineRoomCode').hidden=!ONLINE.code;
+  $('onlineRoomCode').textContent=ONLINE.code;
+  $('bOnlineCopy').hidden=!ONLINE.code;
+  $('bOnlineStart').hidden=ONLINE.role!=='host';
+  $('bOnlineStart').disabled=!ONLINE.connected;
+  $('ovOnline').hidden=false;
+}
+function onlineCleanup(){
+  if(ONLINE.timer){clearInterval(ONLINE.timer);ONLINE.timer=null;}
+  try{if(ONLINE.conn) ONLINE.conn.close();}catch(e){}
+  try{if(ONLINE.peer) ONLINE.peer.destroy();}catch(e){}
+  ONLINE.role=null; ONLINE.code=''; ONLINE.peer=null; ONLINE.conn=null; ONLINE.connected=false; ONLINE.lastState='';
+}
+function onlineFail(msg){ onlineStatus(msg); $('bOnlineStart').disabled=true; }
+function applyOnlineSnapshot(d){
+  if(!d || !d.G) return;
+  ONLINE.applying=true;
+  Object.keys(d.G).forEach(k=>{G[k]=d.G[k];});
+  s=d.s || null; popups=d.popups || []; parts=d.parts || [];
+  if(G.tempo && TEMPO[G.tempo]) document.body.classList.toggle('hc',G.tempo==='hardcore');
+  updateHud();
+  if(G.state==='run' || G.state==='paused'){
+    $('ovOnline').hidden=true; $('ovMenu').hidden=true; $('ovDevice').hidden=true;
+    $('ovReview').hidden=true; $('ovEnd').hidden=true; $('ovPause').hidden=true;
+  } else if(G.state==='review'){
+    $('ovOnline').hidden=false; $('ovMenu').hidden=true; $('ovReview').hidden=true;
+    $('onlineTitle').textContent='Satz geschafft';
+    $('onlineIntro').textContent='Der Gastgeber wertet den Satz aus. Gleich geht es gemeinsam weiter.';
+    $('onlineRoomCode').hidden=true; $('bOnlineStart').hidden=true; $('bOnlineCopy').hidden=true;
+    onlineStatus('Warte auf den nächsten Satz …');
+  } else if(G.state==='end'){
+    $('ovOnline').hidden=false; $('ovMenu').hidden=true;
+    $('onlineTitle').textContent='Runde beendet';
+    $('onlineIntro').textContent='Der Gastgeber kann eine Revanche starten oder zum Menü zurückkehren.';
+    $('onlineRoomCode').hidden=true; $('bOnlineStart').hidden=true; $('bOnlineCopy').hidden=true;
+    onlineStatus('Endstand wird auf dem Gerät des Gastgebers angezeigt.');
+  }
+  ONLINE.applying=false;
+}
+function broadcastOnlineState(){
+  if(ONLINE.role!=='host' || !ONLINE.connected) return;
+  try{sendOnline({type:'snapshot',G:JSON.parse(JSON.stringify(G)),s:s?JSON.parse(JSON.stringify(s)):null,popups:JSON.parse(JSON.stringify(popups)),parts:JSON.parse(JSON.stringify(parts))});}catch(e){}
+}
+function attachOnlineConnection(conn, role){
+  ONLINE.conn=conn;
+  conn.on('open',()=>{
+    ONLINE.connected=true;
+    if(role==='host'){
+      onlineStatus('Verbunden! Beide können die Figur steuern.');
+      $('bOnlineStart').disabled=false;
+      broadcastOnlineState();
+    } else {
+      onlineStatus('Verbunden. Warte, bis der Gastgeber startet …');
+      sendOnline({type:'hello'});
+    }
+  });
+  conn.on('data',data=>{
+    if(!data || typeof data!=='object') return;
+    if(ONLINE.role==='host'){
+      if(data.type==='jump' && G.state==='run') jump(false);
+      if(data.type==='hello') broadcastOnlineState();
+    } else if(ONLINE.role==='guest' && data.type==='snapshot') applyOnlineSnapshot(data);
+  });
+  conn.on('close',()=>{ONLINE.connected=false; if(ONLINE.role) onlineFail('Die Verbindung wurde getrennt. Erstelle einen neuen Raum oder tritt erneut bei.');});
+  conn.on('error',()=>{if(ONLINE.role) onlineFail('Verbindungsfehler. Prüfe den Code und die Internetverbindung.');});
+}
+function createOnlineRoom(){
+  onlineCleanup();
+  if(!window.Peer){alert('Die Online-Bibliothek konnte nicht geladen werden. Prüfe deine Internetverbindung und lade die Seite neu.');return;}
+  ONLINE.role='host';
+  const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  ONLINE.code=Array.from({length:6},()=>alphabet[Math.floor(Math.random()*alphabet.length)]).join('');
+  const peerId='kommasprung-'+ONLINE.code.toLowerCase();
+  onlineShow('Dein Online-Raum','Teile den Code mit dem zweiten Spieler.');
+  onlineStatus('Raum wird erstellt …');
+  ONLINE.peer=new Peer(peerId);
+  ONLINE.peer.on('open',()=>onlineStatus('Raum bereit. Warte auf den zweiten Spieler …'));
+  ONLINE.peer.on('connection',conn=>{ if(ONLINE.connected){conn.close();return;} attachOnlineConnection(conn,'host'); });
+  ONLINE.peer.on('error',err=>{
+    const msg=err && err.type==='unavailable-id'?'Dieser Raumcode ist bereits belegt. Schließe den Raum und erstelle einen neuen.':'PeerJS konnte keine Verbindung aufbauen. Prüfe die Internetverbindung und lade neu.';
+    onlineFail(msg);
+  });
+  ONLINE.timer=setInterval(broadcastOnlineState,120);
+}
+function joinOnlineRoom(){
+  onlineCleanup();
+  if(!window.Peer){alert('Die Online-Bibliothek konnte nicht geladen werden. Prüfe deine Internetverbindung und lade die Seite neu.');return;}
+  const code=$('onlineJoinCode').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(!/^[A-Z0-9]{6}$/.test(code)){alert('Bitte gib einen sechsstelligen Raumcode ein.');return;}
+  ONLINE.role='guest'; ONLINE.code=code;
+  onlineShow('Raum beitreten','Verbinde dich mit dem Gastgeber.');
+  onlineStatus('Verbindung wird hergestellt …');
+  ONLINE.peer=new Peer();
+  ONLINE.peer.on('open',()=>{
+    const conn=ONLINE.peer.connect('kommasprung-'+code.toLowerCase(),{reliable:true});
+    attachOnlineConnection(conn,'guest');
+  });
+  ONLINE.peer.on('error',()=>onlineFail('Raum nicht gefunden oder Verbindung fehlgeschlagen. Prüfe den Code und versuche es erneut.'));
+}
+$('bOnlineCreate').addEventListener('click',createOnlineRoom);
+$('bOnlineJoin').addEventListener('click',joinOnlineRoom);
+$('bOnlineStart').addEventListener('click',()=>{
+  if(ONLINE.role!=='host' || !ONLINE.connected){onlineStatus('Warte zuerst, bis der zweite Spieler verbunden ist.');return;}
+  $('ovOnline').hidden=true;
+  G.multi=false; store.set('multi','0');
+  startGame(); broadcastOnlineState();
+});
+$('bOnlineCopy').addEventListener('click',async()=>{
+  try{await navigator.clipboard.writeText(ONLINE.code);onlineStatus('Raumcode kopiert.');}
+  catch(e){onlineStatus('Raumcode zum Kopieren markieren: '+ONLINE.code);}
+});
+$('bOnlineLeave').addEventListener('click',()=>{onlineCleanup();showMenu();});
+$('onlineJoinCode').addEventListener('input',e=>{e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);});
+
+/* ---------- Start ---------- */
+applyDevice();
+updateHud();
+const fontLoad = (document.fonts && document.fonts.load)
+  ? Promise.race([
+      Promise.all([document.fonts.load(WORD_FONT), document.fonts.load(COMMA_FONT)]).catch(() => {}),
+      new Promise(r => setTimeout(r, 2500))
+    ])
+  : Promise.resolve();
+fontLoad.then(() => {
+  if(DEVICES[G.device]) showMenu(); else showDevice();
+  requestAnimationFrame(t => { last = t; frame(t); });
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if(G.demo && G.state !== 'turn') startDemo(); });
+});
+})();
+</script>
+
+</html>
